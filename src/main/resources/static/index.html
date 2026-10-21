@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f4f3ef"><title>家里的每一天 · Kindle 看板</title>
+  <link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="/" aria-label="家庭看板首页"><span class="brand-mark">家</span><span>家里的每一天<small>KINDLE HOME DASHBOARD</small></span></a><span class="local-badge"><i></i> 家庭看板 · 本地保存</span></header>
+<main>
+  <div class="intro"><div><p class="eyebrow">A LITTLE SPACE FOR EVERYDAY LIFE</p><h1>把日常，留在眼前。</h1><p class="muted">记下今天的安排，期待每一个小小的回应。</p></div><div class="date-stamp" id="dateStamp">正在连接看板…</div></div>
+  <div id="errorBanner" class="error" role="alert" hidden></div>
+  <div class="workspace">
+    <section class="controls" aria-label="看板管理">
+      <nav class="tabs" aria-label="管理导航">
+        <button class="active" data-tab="daily" aria-pressed="true">日常记录</button><button data-tab="custom" aria-pressed="false">图中文字</button><button data-tab="settings" aria-pressed="false">设置</button>
+      </nav>
+      <div data-panel="daily">
+        <section class="panel pregnancy-panel"><div><p class="eyebrow">WAITING FOR YOU</p><h2 id="gestation">待设置</h2><p id="babyCountdown" class="muted">设置预产期，开始记录期待。</p></div><button class="quiet" id="goDueDate">设置预产期 ↗</button><p class="footnote full">按 40 周估算，仅供家庭日期展示。</p></section>
+        <section class="panel"><div class="section-heading"><h2><span class="section-number">01</span> 今日安排</h2><label class="sr-only" for="todoDate">安排日期</label><input id="todoDate" type="date" required></div>
+          <form id="todoForm" class="inline-form"><label class="sr-only" for="todoContent">安排内容</label><input id="todoContent" maxlength="500" required placeholder="今天想完成什么？"><button class="primary" type="submit">添加</button></form>
+          <div id="todoList" class="todo-list"></div><p class="footnote">勾选完成，点“编辑”修改内容。其他日期的安排会单独保存。</p>
+        </section>
+        <section class="panel"><div class="section-heading"><h2><span class="section-number">02</span> 胎动记录</h2><span class="pill" id="sessionStatus">尚未开始</span></div>
+          <div class="movement-numbers"><div><strong id="todayTaps">0</strong><span>今日次数</span></div><div><strong id="sessionTaps">—</strong><span>当前会话</span></div></div>
+          <div class="movement-actions"><button id="startSession" class="primary">开始计数</button><button id="tapSession" class="tap-button" disabled>＋ 记一次</button><button id="undoSession" disabled>撤销最近一次</button><button id="endSession" disabled>结束</button></div>
+          <p class="footnote">仅记录手动点击，不作医学判断。计数方式请遵循医生的个性化指导。</p>
+          <details><summary>查看今日与历史记录</summary><label class="history-date">记录日期 <input id="movementDate" type="date"></label><div id="movementHistory"></div></details>
+        </section>
+      </div>
+      <div data-panel="custom" hidden><section class="panel"><h2>修改图中文字</h2><p class="muted">采用你提供的固定版式。插画、位置和模块尺寸保持不变，只编辑下次产检、三条提醒和底部寄语。</p><p class="footnote">原有便签和倒计时会沿用到提醒区；长文字会在固定区域内缩小或省略。</p><div id="customCards"></div></section></div>
+      <div data-panel="settings" hidden><form id="settingsForm" class="panel"><h2>让看板更贴近你</h2><div class="field"><label for="boardTitle">看板名称</label><input id="boardTitle" name="title" maxlength="80" required></div>
+        <div class="field"><label for="dueDate">预产期</label><input id="dueDate" name="dueDate" type="date"><small>不填写时显示“待设置”，不使用演示日期。</small></div>
+        <h3>窗外天气</h3><div class="field"><label for="cityName">城市名称</label><input id="cityName" name="cityName" maxlength="60" required><small>默认郑州是演示位置，请按实际情况修改。</small></div><div class="field-grid"><div class="field"><label for="latitude">纬度</label><input id="latitude" name="latitude" type="number" step="any" min="-90" max="90" required></div><div class="field"><label for="longitude">经度</label><input id="longitude" name="longitude" type="number" step="any" min="-180" max="180" required></div></div><div class="field"><label for="weatherMinutes">天气刷新间隔（分钟）</label><input id="weatherMinutes" name="refreshMinutes" type="number" min="10" max="1440" required></div>
+        <h3>输出图片</h3><div class="field-grid"><div class="field"><label for="canvasWidth">宽度（像素）</label><input id="canvasWidth" name="canvasWidth" type="number" min="400" max="3000" required></div><div class="field"><label for="canvasHeight">高度（像素）</label><input id="canvasHeight" name="canvasHeight" type="number" min="400" max="3000" required></div></div><p class="footnote">只改变整张图片的输出像素，固定版式按原图等比缩放，模块位置和大小不可单独调整。</p><div class="field"><label for="timezone">时区</label><input id="timezone" name="timezone" required placeholder="Asia/Shanghai"></div><div class="field"><label for="renderMinutes">自动生成间隔（分钟）</label><input id="renderMinutes" name="defaultRenderMinutes" type="number" min="1" max="1440" required></div><button type="submit" class="primary">保存设置并生成</button>
+      </form><p class="footnote">无登录：仅供本机或可信家庭局域网使用，不可直接暴露公网。</p></div>
+    </section>
+    <aside class="preview-column"><section class="preview-panel"><div class="section-heading"><div><p class="eyebrow">YOUR KINDLE, AT A GLANCE</p><h2>看板预览</h2></div><span class="pill">参考图固定版式</span></div><div id="imageMeta" class="preview-meta">正在加载图片…</div><div class="paper-wrap"><div id="paper" class="paper"><img id="boardImage" alt="服务端生成的家庭看板 PNG"></div></div><div class="preview-actions"><button id="renderNow">↻ 立即生成</button><a class="button primary" id="download" href="/api/image?download=true" download="dashboard.png">下载 PNG ↓</a></div><p class="footnote">固定插画与版式，只更新你录入的内容。预览为服务端实际 PNG，尚未对接 Kindle 自动刷新。</p></section><section class="weather-strip"><div><strong id="weatherSummary">天气暂不可用</strong><p id="weatherTime" class="footnote">等待首次更新</p></div><button id="refreshWeather" class="quiet">刷新天气</button></section><p class="attribution">天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a></p></aside>
+  </div>
+  <footer>一个安静的角落，装下家里的小事。<span>本地 JSON · 灰度 PNG</span></footer>
+</main><div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body></html>

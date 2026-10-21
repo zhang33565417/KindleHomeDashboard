@@ -1,0 +1,13 @@
+/data/
+/target/
+/.idea/
+*.iml
+
+# 本地环境配置、日志及系统缓存，不随源码上传。
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
