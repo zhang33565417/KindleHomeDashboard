@@ -10,6 +10,14 @@
 
 ## 启动
 
+已有Java 17时，可直接下载本分支的[可执行JAR](dist/kindle-home-dashboard-0.1.0.jar)和[SHA256校验文件](dist/kindle-home-dashboard-0.1.0.jar.sha256)，不需要安装Maven。下载到独立文件夹后运行：
+
+```powershell
+java -jar kindle-home-dashboard-0.1.0.jar --server.address=0.0.0.0
+```
+
+仅在可信家庭局域网开放访问；数据自动保存在启动目录的 `data/`，不包含在JAR中。
+
 要求 JDK **17**、Maven **3.6.3+**；首次构建需要联网下载依赖。请先用 `java -version`、`mvn -version` 确认两者使用 JDK 17（本机默认 Java 8 需要切换）。
 
 ```powershell
