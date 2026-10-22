@@ -6,6 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Scheduled;
 import java.io.IOException;
 import java.nio.file.*;
+import java.nio.file.attribute.FileTime;
+import javax.imageio.ImageIO;
 import java.time.*;
 import java.util.*;
 import static com.example.kindleboard.Models.*;
@@ -26,7 +28,6 @@ public class BoardService {
     private Weather weather;
     private Instant imageAt;
     private Instant weatherAttempt;
-    private LocalDate imageDate;
     private String renderError = "";
 
     public BoardService(JsonStore store, PngRenderer renderer, WeatherClient weatherClient) throws IOException {
@@ -43,8 +44,13 @@ public class BoardService {
             require(session != null && session.id() != null && session.startedAt() != null && session.note() != null && session.taps() != null, "胎动文件数据不完整");
             for (Tap tap : session.taps()) require(tap != null && tap.id() != null && tap.at() != null, "胎动事件不完整");
         }
-        if (Files.exists(imagePath())) imageAt = Files.getLastModifiedTime(imagePath()).toInstant();
-        render();
+        // 完整解码成功才复用旧图；版本随 PNG 的修改时间持久化，不依赖进程启动时间。
+        if (Files.isRegularFile(imagePath())) {
+            try {
+                if (ImageIO.read(imagePath().toFile()) != null) imageAt = Files.getLastModifiedTime(imagePath()).toInstant();
+            } catch (IOException e) { log.warn("已有图片无法读取，将重新生成"); }
+        }
+        if (imageAt == null) render();
     }
 
     /** 胎动文件保留清晰的 sessions 根节点。 */
@@ -78,6 +84,12 @@ public class BoardService {
     public synchronized Weather weather() { return weather; }
     private LocalDate today() { return LocalDate.now(ZoneId.of(settings.timezone())); }
     Path imagePath() { return store.directory.resolve("dashboard.png"); }
+
+    /** 版本只读取成功发布的图片状态；尚无可用图片时不返回虚假版本，也不触发重绘。 */
+    public synchronized String version() {
+        if (imageAt == null) throw new Missing("图片尚未生成，请检查中文字体与数据目录权限");
+        return Long.toString(imageAt.toEpochMilli());
+    }
 
     /** 聚合页面与渲染状态，让“保存成功但图片失败”能明确显示，而不误报成未保存。 */
     public synchronized Map<String, Object> state() {
@@ -182,12 +194,19 @@ public class BoardService {
         store.save("weather.json", updated); weather = updated; render(); return weather;
     }
 
-    /** 渲染失败与保存结果分开报告；旧图片和旧成功时间保持不变。 */
+    /** 同一把锁串行化保存、定时生成和下载；失败不发布临时图，也不推进版本。 */
     public synchronized void render() {
         Instant now = Instant.now();
         try {
-            renderer.render(imagePath(), settings, layout, todos, sessions, weather, now);
-            imageAt = now; imageDate = today(); renderError = "";
+            Path pending = store.directory.resolve("dashboard.pending.png");
+            renderer.render(pending, settings, layout, todos, sessions, weather, now);
+            // 时钟回拨或同一毫秒连续保存时也递增；先写入临时图元数据，再一次性发布图片与版本。
+            long next = imageAt == null ? now.toEpochMilli() : Math.max(now.toEpochMilli(), imageAt.toEpochMilli() + 1);
+            Files.setLastModifiedTime(pending, FileTime.fromMillis(next));
+            if (Files.getLastModifiedTime(pending).toMillis() != next) throw new IOException("文件系统无法保留毫秒版本时间");
+            // 不支持原子替换时直接失败，避免进程中断留下半张图片或丢失旧版本。
+            Files.move(pending, imagePath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            imageAt = Instant.ofEpochMilli(next); renderError = "";
         } catch (Exception e) {
             renderError = "数据已保存，图片生成失败，保留上次成功图片。请检查数据目录权限、磁盘空间和中文字体。";
             log.warn("图片生成失败（{}），保留旧图", e.getClass().getSimpleName());
@@ -195,12 +214,16 @@ public class BoardService {
     }
 
     public synchronized byte[] image() throws IOException {
-        if (!Files.exists(imagePath())) throw new Missing("图片尚未生成，请检查中文字体与数据目录权限");
+        version();
         return Files.readAllBytes(imagePath());
     }
 
-    /** 每分钟轻量检查；天气按设置间隔请求，跨日和重绘间隔到期时生成新图。 */
-    @Scheduled(initialDelay = 1000, fixedDelay = 60000)
+    /** 固定在整点、半点生成，即使数据没有变化也发布新版本；午夜自然包含在内。 */
+    @Scheduled(cron = "0 0,30 * * * *", zone = "Asia/Shanghai")
+    public synchronized void scheduledRender() { render(); }
+
+    /** 天气仍按现有设置间隔检查，更新缓存成功后沿用即时重绘链路。 */
+    @Scheduled(initialDelay = 60000, fixedDelay = 60000)
     public synchronized void tick() {
         Instant now = Instant.now();
         Instant previous = weatherAttempt == null ? weather.lastSuccessAt() : weatherAttempt;
@@ -209,7 +232,6 @@ public class BoardService {
         if (weatherDue) {
             try { refreshWeather(); } catch (IOException e) { log.warn("天气缓存保存失败，请检查数据目录"); }
         }
-        if (!today().equals(imageDate) || imageAt == null || imageAt.plusSeconds(settings.defaultRenderMinutes() * 60L).isBefore(now)) render();
     }
 
     static void validateSettings(Settings value) {

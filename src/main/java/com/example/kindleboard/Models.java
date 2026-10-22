@@ -11,11 +11,11 @@ public final class Models {
     public record Settings(
             /* 看板名称 */ String title,
             /* IANA 时区 */ String timezone,
-            /* 图片宽度像素 */ int canvasWidth,
+            /* 图片宽度像素；宽大于高使用横版底图，否则使用竖版底图 */ int canvasWidth,
             /* 图片高度像素 */ int canvasHeight,
             /* 天气查询位置和间隔 */ Location weather,
             /* 用户预产期；未填写时为空 */ LocalDate dueDate,
-            /* 定期重绘间隔（分钟） */ int defaultRenderMinutes) {}
+            /* 兼容旧管理页的重绘间隔字段；后端固定整点、半点生成，不再按此值调度 */ int defaultRenderMinutes) {}
 
     /** 手填天气位置，不把默认城市视为用户真实住址。 */
     public record Location(

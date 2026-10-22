@@ -39,10 +39,19 @@ public class BoardController {
     @PostMapping("/weather/refresh") public Weather refresh() throws IOException { return board.refreshWeather(); }
     @PostMapping("/render") public Map<String, Object> render() { board.render(); return board.state(); }
 
-    /** 只读取最新成功 PNG；禁用缓存，下载与预览保持同一图片来源。 */
+    /** Kindle 轮询只查询版本；禁止浏览器和中间代理缓存，不触发渲染。 */
+    @GetMapping("/version")
+    public ResponseEntity<Map<String, String>> version() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .header(HttpHeaders.PRAGMA, "no-cache").header(HttpHeaders.EXPIRES, "0")
+                .body(Map.of("version", board.version()));
+    }
+
+    /** 只读取最新成功 PNG；可附加 ?v=版本 避免缓存，参数不选择历史图，也不触发生成。 */
     @GetMapping(value = "/image", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> image(@RequestParam(defaultValue = "false") boolean download) throws IOException {
         return ResponseEntity.ok().contentType(MediaType.IMAGE_PNG).cacheControl(CacheControl.noStore())
+                .header(HttpHeaders.PRAGMA, "no-cache").header(HttpHeaders.EXPIRES, "0")
                 .header(HttpHeaders.CONTENT_DISPOSITION, (download ? "attachment" : "inline") + "; filename=dashboard.png")
                 .body(board.image());
     }
@@ -51,7 +60,7 @@ public class BoardController {
     public record Note(/* 会话备注 */ String note) {}
 
     @ExceptionHandler(BoardService.Missing.class)
-    public ResponseEntity<?> missing(BoardService.Missing e) { return ResponseEntity.status(404).body(Map.of("message", e.getMessage())); }
+    public ResponseEntity<?> missing(BoardService.Missing e) { return ResponseEntity.status(404).cacheControl(CacheControl.noStore()).body(Map.of("message", e.getMessage())); }
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<?> bad(IllegalArgumentException e) { return ResponseEntity.badRequest().body(Map.of("message", e.getMessage())); }
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})

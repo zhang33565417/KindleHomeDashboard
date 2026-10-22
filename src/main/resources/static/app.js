@@ -122,6 +122,7 @@ async function loadHistory() {
 
 function fillSettings() {
   const settings = state.settings;
+  $('orientation').value = settings.canvasWidth > settings.canvasHeight ? 'landscape' : 'portrait';
   const values = {...settings, ...settings.weather, dueDate:settings.dueDate || ''};
   for (const [name, value] of Object.entries(values)) if ($('settingsForm').elements.namedItem(name)) $('settingsForm').elements.namedItem(name).value = value;
 }
@@ -132,6 +133,7 @@ function renderCustom() {
   $('customCards').replaceChildren();
   const labels = ['下次产检信息', '今日提醒 · 左', '今日提醒 · 中', '今日提醒 · 右', '底部寄语'];
   draft.forEach((card, index) => {
+    if (index > 0 && index < 4) return; // 三条提醒只保留历史数据，不再显示编辑入口。
     const form = document.createElement('form'); form.className = 'custom-card';
     form.innerHTML = `<h3>${labels[index]}</h3>${index < 4 ? `<div class="field"><label>标题<input name="title" maxlength="80" value="${esc(card.title)}"></label></div>` : ''}<div class="field"><label>${index === 0 ? '地点 / 补充说明' : '正文'}<textarea name="text" maxlength="5000">${esc(card.text)}</textarea></label></div>${index > 0 && index < 4 ? `<div class="field"><label>可选倒计时日期<input name="targetDate" type="date" value="${esc(card.targetDate)}"></label><small>留空显示正文；填写后，此处显示目标日期倒计时。</small></div>` : ''}<button type="submit" class="primary">保存内容并生成</button>`;
     form.onsubmit = event => {
@@ -159,6 +161,19 @@ for (const [id, action, message] of [['tapSession','tap','已记录一次'],['un
     run(async () => { await api('/movements/' + state.activeSession.id + '/' + action,'POST'); await load(); }, message);
   };
 }
+// 方向沿用既有宽高保存，防止方向标识与输出分辨率互相矛盾。
+function syncOrientation() {
+  $('orientation').value = Number($('canvasWidth').value) > Number($('canvasHeight').value) ? 'landscape' : 'portrait';
+}
+$('orientation').onchange = () => {
+  const width = $('canvasWidth'), height = $('canvasHeight');
+  if (($('orientation').value === 'landscape') !== (Number(width.value) > Number(height.value))) {
+    [width.value, height.value] = [height.value, width.value];
+  }
+  syncOrientation();
+};
+$('canvasWidth').oninput = syncOrientation;
+$('canvasHeight').oninput = syncOrientation;
 $('settingsForm').onsubmit = event => {
   event.preventDefault(); const data = new FormData(event.target);
   const settings = {title:data.get('title'),timezone:data.get('timezone'),canvasWidth:Number(data.get('canvasWidth')),canvasHeight:Number(data.get('canvasHeight')),dueDate:data.get('dueDate') || null,defaultRenderMinutes:Number(data.get('defaultRenderMinutes')),weather:{cityName:data.get('cityName'),latitude:Number(data.get('latitude')),longitude:Number(data.get('longitude')),refreshMinutes:Number(data.get('refreshMinutes'))}};

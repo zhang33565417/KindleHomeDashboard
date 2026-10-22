@@ -10,6 +10,10 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.time.*;
 import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.support.CronExpression;
 import static com.example.kindleboard.Models.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -45,7 +49,9 @@ class BoardTest {
     @Test void todoCrudPersistsAndChangesPng() throws Exception {
         LocalDate today = LocalDate.now(ZoneId.of(board.settings().timezone()));
         byte[] before = board.image();
+        String version = board.version();
         Todo created = board.saveTodo(null, new Todo(null, today, "阅读半小时", false, 10));
+        assertNotEquals(version, board.version());
         assertFalse(Arrays.equals(before, board.image()));
         board.saveTodo(created.id(), new Todo(null, today, "阅读一小时", true, 10));
         assertTrue(board.todos(today).get(0).done());
@@ -56,8 +62,12 @@ class BoardTest {
     }
 
     @Test void fiveTapsUndoOneRestartAndEnd() throws Exception {
+        String version = board.version();
         Session session = board.start(); assertEquals(session.id(), board.start().id());
+        assertNotEquals(version, board.version());
+        version = board.version();
         for (int i = 0; i < 5; i++) board.changeSession(session.id(), "tap", null);
+        assertNotEquals(version, board.version());
         board.changeSession(session.id(), "undo", null);
         LocalDate date = LocalDate.now(ZoneId.of(board.settings().timezone()));
         assertEquals(4L, board.movements(date).get("count"));
@@ -115,16 +125,19 @@ class BoardTest {
         assertThrows(IllegalArgumentException.class, () -> board.saveTodo(null,new Todo(null,LocalDate.now()," ",false,0)));
         assertThrows(IllegalArgumentException.class, () -> board.saveSettings(new Settings(s.title(),"invalid",400,400,s.weather(),null,60)));
         List<CardText> content = new ArrayList<>(FixedContent.read(board.layout()));
-        CardText left = content.get(1);
-        content.set(1,new CardText(left.id(),left.title(),"这是很长的中文内容".repeat(400),null));
+        CardText hidden = content.get(1);
+        content.set(1,new CardText(hidden.id(),hidden.title(),"这是已移除的提醒".repeat(400),null));
+        renderer.render(after,full,FixedContent.merge(board.layout(),content),List.of(),List.of(),board.weather(),now);
+        assertArrayEquals(Files.readAllBytes(before),Files.readAllBytes(after),"隐藏提醒的内容不得影响新图");
+        CardText appointment = content.get(0);
+        content.set(0,new CardText(appointment.id(),"超长产检信息".repeat(10),appointment.text(),null));
         renderer.render(after,full,FixedContent.merge(board.layout(),content),List.of(),List.of(),board.weather(),now);
         BufferedImage image = ImageIO.read(before.toFile()), changed = ImageIO.read(after.toFile());
         assertFalse(Arrays.equals(Files.readAllBytes(before),Files.readAllBytes(after)));
-        for (int y = 0; y < image.getHeight(); y++) {
-            for (int x=0; x<image.getWidth(); x++) {
-                if (x>=113 && x<370 && y>=1275 && y<1304) continue;
-                assertEquals(image.getRGB(x,y),changed.getRGB(x,y),"长文字只能影响自己的固定文字槽位");
-            }
+        // 按1080×1456逻辑坐标等比输出到1086×1448，容许一个像素的抗锯齿边缘。
+        for (int y=0;y<image.getHeight();y++) for (int x=0;x<image.getWidth();x++) {
+            if(x>=155 && x<503 && y>=1040 && y<1078) continue;
+            assertEquals(image.getRGB(x,y),changed.getRGB(x,y),"长文字只能影响产检标题槽位");
         }
     }
 
@@ -142,14 +155,127 @@ class BoardTest {
 
     @Test void renderFailureAndStorageFailureKeepOldFiles() throws Exception {
         byte[] previous = board.image(); Object imageAt = board.state().get("imageAt");
+        String version = board.version();
         doThrow(new IOException("render failed")).when(renderer).render(any(),any(),any(),any(),any(),any(),any());
         board.render(); assertArrayEquals(previous,board.image()); assertEquals(imageAt,board.state().get("imageAt"));
+        assertEquals(version, board.version());
+        assertEquals(version, reopen().version());
         assertFalse(((String)board.state().get("renderError")).isEmpty());
         // 用目录占住临时文件名，模拟磁盘写入失败，正式 JSON 和内存都必须保留。
         Files.createDirectory(directory.resolve("todos.json.tmp"));
         assertThrows(IOException.class, () -> board.saveTodo(null,new Todo(null,LocalDate.now(),"不能假保存",false,0)));
         assertTrue(board.todos(LocalDate.now()).isEmpty());
         assertEquals(0,mapper.readTree(directory.resolve("todos.json").toFile()).size());
+    }
+
+    @Test void restartReusesValidImageAndRegeneratesMissingOrBrokenImage() throws Exception {
+        byte[] previous = board.image();
+        String version = board.version();
+        clearInvocations(renderer);
+        assertEquals(version, reopen().version());
+        assertArrayEquals(previous, board.image());
+        verify(renderer, never()).render(any(),any(),any(),any(),any(),any(),any());
+        Files.delete(board.imagePath());
+        BoardService recovered = reopen();
+        assertNotNull(ImageIO.read(new java.io.ByteArrayInputStream(recovered.image())));
+        Files.writeString(board.imagePath(), "broken PNG");
+        recovered = reopen();
+        assertNotNull(ImageIO.read(new java.io.ByteArrayInputStream(recovered.image())));
+        assertEquals(recovered.version(), reopen().version());
+        verify(renderer, times(2)).render(any(),any(),any(),any(),any(),any(),any());
+    }
+
+    @Test void halfHourlyScheduleAlwaysAdvancesVersionEvenWithClockRollback() throws Exception {
+        Scheduled schedule = BoardService.class.getMethod("scheduledRender").getAnnotation(Scheduled.class);
+        var cron = CronExpression.parse(schedule.cron());
+        var hour = LocalDateTime.of(2026, 10, 22, 9, 0);
+        assertEquals(hour.plusMinutes(30), cron.next(hour));
+        assertEquals(hour.plusHours(1), cron.next(hour.plusMinutes(30)));
+        assertEquals("Asia/Shanghai", schedule.zone());
+        // 用未来的成功时间模拟系统时钟回拨，同时锁住同毫秒连续生成的递增规则。
+        long future = System.currentTimeMillis() + 3600000;
+        Files.setLastModifiedTime(board.imagePath(), java.nio.file.attribute.FileTime.fromMillis(future));
+        BoardService restarted = reopen();
+        restarted.scheduledRender();
+        assertEquals(Long.toString(future + 1), restarted.version());
+        restarted.scheduledRender();
+        assertEquals(Long.toString(future + 2), restarted.version());
+        assertEquals(restarted.version(), reopen().version());
+    }
+
+    @Test void failedPublicationKeepsImageAndVersion() throws Exception {
+        byte[] previous = board.image();
+        String version = board.version();
+        // 阻塞发布前的临时输出，验证存储故障不会提前覆盖正式图片或版本。
+        Files.createDirectory(directory.resolve("dashboard.pending.png"));
+        Files.writeString(directory.resolve("dashboard.pending.png/block"), "block");
+        board.render();
+        assertEquals(version, board.version());
+        assertArrayEquals(previous, board.image());
+        assertEquals(version, reopen().version());
+        assertFalse(((String) board.state().get("renderError")).isEmpty());
+    }
+
+    @Test void concurrentScheduledAndManualUpdatesPublishOnlyCompleteImages() throws Exception {
+        AtomicInteger active = new AtomicInteger(), maximum = new AtomicInteger();
+        doAnswer(call -> {
+            maximum.accumulateAndGet(active.incrementAndGet(), Math::max);
+            try { return call.callRealMethod(); }
+            finally { active.decrementAndGet(); }
+        }).when(renderer).render(any(),any(),any(),any(),any(),any(),any());
+        long previous = Long.parseLong(board.version());
+        ExecutorService workers = Executors.newFixedThreadPool(3);
+        try {
+            List<Callable<Void>> work = new ArrayList<>();
+            for (int i = 0; i < 3; i++) {
+                work.add(() -> { board.scheduledRender(); return null; });
+                work.add(() -> { board.saveTodo(null, new Todo(null, LocalDate.now(), "并发保存", false, 0)); return null; });
+                work.add(() -> {
+                    assertNotNull(ImageIO.read(new java.io.ByteArrayInputStream(board.image())));
+                    assertNotNull(board.version());
+                    return null;
+                });
+            }
+            for (Future<Void> task : workers.invokeAll(work, 30, TimeUnit.SECONDS)) task.get();
+        } finally { workers.shutdownNow(); }
+        assertEquals(1, maximum.get());
+        assertTrue(Long.parseLong(board.version()) >= previous + 6);
+        assertEquals(3, board.todos(LocalDate.now()).size());
+        assertEquals(board.version(), reopen().version());
+        assertArrayEquals(board.image(), reopen().image());
+        assertEquals("", board.state().get("renderError"));
+    }
+
+    @Test void versionAndCacheBustingImageReadsNeverRender() throws Exception {
+        var http = MockMvcBuilders.standaloneSetup(new BoardController(board)).build();
+        String version = board.version();
+        byte[] previous = board.image();
+        clearInvocations(renderer);
+        for (int i = 0; i < 2; i++) {
+            http.perform(get("/api/version")).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.version").value(version))
+                    .andExpect(header().string("Cache-Control", "no-store"))
+                    .andExpect(header().string("Pragma", "no-cache"))
+                    .andExpect(header().string("Expires", "0"));
+            http.perform(get("/api/image").param("v", i == 0 ? version : "old-version"))
+                    .andExpect(status().isOk()).andExpect(content().contentType("image/png"))
+                    .andExpect(header().string("Cache-Control", "no-store"))
+                    .andExpect(content().bytes(previous));
+        }
+        verify(renderer, never()).render(any(),any(),any(),any(),any(),any(),any());
+    }
+
+    @Test void noSuccessfulImageReturnsUncached404WithoutRendering() throws Exception {
+        Files.delete(board.imagePath());
+        doThrow(new IOException("render failed")).when(renderer).render(any(),any(),any(),any(),any(),any(),any());
+        BoardService unavailable = reopen();
+        clearInvocations(renderer);
+        var http = MockMvcBuilders.standaloneSetup(new BoardController(unavailable)).build();
+        http.perform(get("/api/version")).andExpect(status().isNotFound())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.message").isNotEmpty());
+        http.perform(get("/api/image")).andExpect(status().isNotFound());
+        verify(renderer, never()).render(any(),any(),any(),any(),any(),any(),any());
     }
 
     @Test void brokenJsonIsNotResetAndGetsBackup() throws Exception {
@@ -200,12 +326,18 @@ class BoardTest {
         renderer.render(target,settings,FixedContent.merge(board.layout(),content),todos,sessions,weather,now);
         BufferedImage example=ImageIO.read(target.toFile());
         assertEquals(1086,example.getWidth());
-        int headingTop=1034,headingBottom=1005;
-        for (int y=1006;y<1034;y++) for (int x=749;x<834;x++) {
-            if (example.getRaster().getSample(x,y,0)<130) { headingTop=Math.min(headingTop,y); headingBottom=Math.max(headingBottom,y); }
-        }
-        assertTrue(headingTop<=headingBottom,"最近记录标题必须实际绘制");
-        assertEquals(1016.5,(headingTop+headingBottom)/2d,1.0,"标题实际文字必须与虚线中心垂直对齐");
+        assertEquals(1448,example.getHeight());
+        Settings landscape = new Settings(settings.title(),settings.timezone(),1448,1086,settings.weather(),settings.dueDate(),60);
+        Path wideTarget=Path.of("target/fixed-template-landscape-preview.png");
+        renderer.render(wideTarget,landscape,FixedContent.merge(board.layout(),content),todos,sessions,weather,now);
+        BufferedImage wide=ImageIO.read(wideTarget.toFile());
+        assertEquals(1448,wide.getWidth()); assertEquals(1086,wide.getHeight());
+        assertEquals(1,wide.getRaster().getNumBands());
+        board.saveSettings(landscape);
+        BoardService restarted=reopen();
+        assertEquals(landscape,restarted.settings(),"重启必须保持横版宽高");
+        BufferedImage saved=ImageIO.read(restarted.imagePath().toFile());
+        assertEquals(1448,saved.getWidth()); assertEquals(1086,saved.getHeight());
     }
 
     private BoardService reopen() throws IOException { return new BoardService(new JsonStore(mapper,directory.toString()),renderer,client); }
