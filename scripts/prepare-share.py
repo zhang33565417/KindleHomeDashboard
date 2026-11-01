@@ -72,7 +72,5 @@ for f, relative in tiles:
 for name in folders:
     template = ROOT / 'scripts/share-notes' / (name + '.md')
     copy(template, out / name / '文件说明.md')
-copy(ROOT / 'scripts/share-notes/03-项目源码.md', out / '文件说明.md')
-copy(ROOT / 'scripts/share-notes/先看这里.md', out / '先看这里.md')
 print(out)
 print('Created ready-to-upload directory. No household data, Git history, personal URL, SSH files or third-party executables included.')

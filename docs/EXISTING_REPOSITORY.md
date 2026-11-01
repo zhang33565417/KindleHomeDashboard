@@ -12,8 +12,6 @@
 KindleHomeDashboard/             原来的仓库
   .git/                         保留 Git 管理目录，不上传、不覆盖、不删除
   README.md                     更新为新版首页说明
-  文件说明.md
-  先看这里.md
   pom.xml
   .gitignore
   .gitattributes
@@ -79,8 +77,7 @@ git push
 
 ## README 和文件说明
 
-- 根 `README.md`：首页介绍、示例图、服务器启动、设备教程入口、日常使用与限制。
-- 根 `文件说明.md`：整个仓库各目录的作用。
+- 根 `README.md`：首页介绍、示例图、统一文件说明、服务器启动、设备教程入口、日常使用与限制。
 - `01-服务端/文件说明.md`：JAR 怎么运行，数据在哪里，如何备份。
 - `02-Kindle客户端/文件说明.md`：设备文件分别做什么，哪些需要复制或配置。
 - `deploy/kindle/README.md`：越狱适配、KUAL、Wi-Fi、USBNetwork/SSH、安装、排错和卸载。

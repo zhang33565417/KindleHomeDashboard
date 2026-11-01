@@ -30,11 +30,32 @@ Java 17 + Spring Boot + 原生 HTML/CSS/JS + 本地 JSON + Java2D。一个 JAR �
 
 **设备完整步骤：[越狱 → Wi-Fi/USB Network → SSH → 安装看板 → 排错与卸载](deploy/kindle/README.md)。**
 
-## 文件在哪里
+## 文件说明
 
-- [01-服务端](01-服务端/文件说明.md)：运行 JAR 的方法。
-- [02-Kindle客户端](02-Kindle客户端/文件说明.md)：复制到 Kindle 的文件及用途。
-- [根目录文件说明](文件说明.md)：源码、配置和文档的作用。
+服务端和 Kindle 客户端分别放在下面两个文件夹，源码、配置和文档位于仓库根目录。使用者先启动服务端，再按设备教程安装客户端；源码供查看、修改和重新构建。
+
+| 文件/目录 | 作用 |
+| --- | --- |
+| [01-服务端/](01-服务端/文件说明.md) | 可直接运行的 JAR，含运行、数据目录和备份说明。 |
+| [02-Kindle客户端/](02-Kindle客户端/文件说明.md) | 可复制到 Kindle 的完整客户端与图块，含各脚本用途说明。 |
+| `README.md` | 项目介绍、运行要求、服务器启动、设置、日常使用和排错。 |
+| `pom.xml` | Java/Maven 项目配置与依赖。执行 `mvn clean package` 构建。 |
+| `.gitignore` | 防止把数据、密钥、设备备份、生成文件等误提交 Git。 |
+| `.gitattributes` | 固定 Shell 等文本的换行格式，避免 Windows 换行导致 Kindle 无法执行。 |
+| `src/main/java/` | 服务端代码：接口、记录保存、天气、图片渲染、Kindle 画面包。 |
+| `src/main/resources/static/` | 浏览器管理页面的 HTML、CSS、JavaScript。 |
+| `src/main/resources/templates/` | 横竖屏底图，Java 程序在图上填入动态内容。 |
+| `src/main/resources/application.properties` | 默认端口、监听地址、数据目录、字体配置。 |
+| `src/test/` | 服务端自动化测试。 |
+| `deploy/kindle/` | Kindle 脚本、菜单、配置示例与完整越狱/联网/安装教程。源码版不含大量生成的图块。 |
+| `deploy/nginx/` | 可选公网 HTTPS 反向代理、账号密码保护示例与部署说明。 |
+| `docs/API.md` | 接口速查。 |
+| `docs/PUBLISHING.md` | 整理文件夹、上传 GitHub 和交付步骤。 |
+| `docs/*.png` | 使用演示数据生成的横竖屏示例图。 |
+| `docs/其他设计与验证文档` | 设计思路和当时的验证记录，以当前 README 为安装依据。 |
+| `scripts/make-client-assets.py` | 在电脑生成横竖版时钟、电量图块，需要 Python 和 Pillow。 |
+| `scripts/prepare-share.py` | 重新生成可直接上传的目录，不生成压缩包或校验文件。 |
+| `scripts/share-notes/` | 各分享文件夹的中文说明模板。 |
 
 ## 启动服务器
 
@@ -127,19 +148,7 @@ Windows 优先使用系统宋体；Linux 可安装 Noto CJK。缺少中文字体
 
 Kindle 升级前执行 `sh /mnt/us/extensions/kindle-dashboard/control.sh home`，备份扩展目录，再覆盖新客户端；保留自己的 `server-url.txt` 和 `bin/`。
 
-## 目录与接口
-
-```text
-src/                   服务端、管理页、底图与测试
-deploy/kindle/        Kindle 脚本、KUAL 菜单、配置示例和设备教程
-deploy/nginx/         可选公网 HTTPS + Basic Auth
-scripts/               图块生成与分享文件夹生成
-docs/                 演示图、接口与发布指南
-docs/history/         历史记录，不作为当前安装步骤
-share/                 本地生成的 GitHub 上传目录（忽略，不提交）
-data/、dist/data/       家庭数据（忽略，不提交）
-.kindle-maintenance/    私人维护与备份（忽略，不提交）
-```
+## 接口
 
 常用接口：`/api/health`、`/api/version`、`/api/image`、`/api/kindle/frame`。设备依赖版本和 frame 两个接口，frame 返回清单、整图、时钟与电量背景 ZIP。普通 PNG 不能替代 frame 协议。详见 [接口速查](docs/API.md)。
 
