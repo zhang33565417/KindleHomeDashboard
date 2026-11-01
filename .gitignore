@@ -17,8 +17,6 @@ Thumbs.db
 /dist/
 /share/
 **/data/
-deploy/kindle/server-url.txt
-deploy/kindle/layout-assets/
 *.pem
 *.key
 *.ppk

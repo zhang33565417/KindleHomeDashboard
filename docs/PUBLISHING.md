@@ -8,7 +8,7 @@
 
 ## 已整理好的目录
 
-`share/GitHub上传目录/` 内部就是仓库根目录：README、pom.xml、src、deploy、docs、scripts，以及 `01-服务端jar包`、`02-Kindle客户端脚本`。
+`share/GitHub上传目录/` 内部就是仓库根目录：README、pom.xml、src、docs、scripts，以及 `01-服务端jar包`、`02-Kindle客户端脚本`。
 
 上传目录内部内容，不套外面的“GitHub上传目录”这一层。README 已位于根目录，上传后显示在首页。各目录都有中文文件说明，没有压缩包或 SHA256 校验文件。
 

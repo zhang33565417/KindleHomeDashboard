@@ -16,7 +16,6 @@ KindleHomeDashboard/             原来的仓库
   .gitignore
   .gitattributes
   src/
-  deploy/
   docs/
   scripts/
   01-服务端jar包/                    当前可运行 JAR 和中文说明
@@ -51,7 +50,7 @@ dist/kindle-home-dashboard-0.1.0-updated.jar.sha256
 
 只复制新文件不能移除 GitHub 上的旧文件，删除旧包也需要作为本次提交的一部分。`.gitignore` 不能自动删除已经跟踪的文件。
 
-旧 `docs/` 中仍有价值的设计资料可以保留，当前安装以根 README 和 `deploy/kindle/README.md` 为准。私人维护记录和设备备份不提交。不要删除旧 Release 或改写 Git 历史来整理普通版本文件。
+旧 `docs/` 中仍有价值的设计资料可以保留，当前安装以根 README 和 `02-Kindle客户端脚本/kindle-dashboard/README.md` 为准。私人维护记录和设备备份不提交。不要删除旧 Release 或改写 Git 历史来整理普通版本文件。
 
 ## 使用命令行时
 
@@ -80,6 +79,6 @@ git push
 - 根 `README.md`：首页介绍、示例图、统一文件说明、服务器启动、设备教程入口、日常使用与限制。
 - `01-服务端jar包/文件说明.md`：JAR 怎么运行，数据在哪里，如何备份。
 - `02-Kindle客户端脚本/文件说明.md`：设备文件分别做什么，哪些需要复制或配置。
-- `deploy/kindle/README.md`：越狱适配、KUAL、Wi-Fi、USBNetwork/SSH、安装、排错和卸载。
+- `02-Kindle客户端脚本/kindle-dashboard/README.md`：越狱适配、KUAL、Wi-Fi、USBNetwork/SSH、安装、排错和卸载。
 
 源码和说明继续在原仓库中维护。可运行 JAR 不复制到 Kindle；不要把使用后生成的家庭数据同步回 GitHub。

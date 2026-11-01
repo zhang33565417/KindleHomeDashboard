@@ -18,17 +18,17 @@ Java 17 + Spring Boot + 原生 HTML/CSS/JS + 本地 JSON + Java2D。一个 JAR �
 | 网络 | 入门建议 Kindle、手机、服务器连接同一个可信家庭 Wi-Fi |
 | 操作 | 需要复制文件、编辑配置、执行 SSH 命令 |
 
-**服务端没有内置登录，不要将 8080 映射到公网。** 公网使用参阅 [Nginx 认证部署](deploy/nginx/README.md)。胎动功能只作手动记录，不提供医学判断。
+**服务端没有内置登录，不要将 8080 映射到公网。** 胎动功能只作手动记录，不提供医学判断。
 
 ## 从零安装顺序
 
 1. 按下文启动服务器，先在电脑和手机上看到看板。
-2. 按 [Kindle 安装与联网指南](deploy/kindle/README.md) 确认型号、固件、越狱，安装 KUAL/MRPI。
+2. 按 [Kindle 安装与联网指南](02-Kindle客户端脚本/kindle-dashboard/README.md) 确认型号、固件、越狱，安装 KUAL/MRPI。
 3. 按设备指南连接 Wi-Fi，安装 USBNetwork/USBNetLite，测试 SSH。
 4. 安装本项目客户端，填写自己的服务器地址，补齐 FBInk、evtest。
 5. 检查后进入看板，验证内容更新、返回主页和休眠唤醒。
 
-**设备完整步骤：[越狱 → Wi-Fi/USB Network → SSH → 安装看板 → 排错与卸载](deploy/kindle/README.md)。**
+**设备完整步骤：[越狱 → Wi-Fi/USB Network → SSH → 安装看板 → 排错与卸载](02-Kindle客户端脚本/kindle-dashboard/README.md)。**
 
 ## 文件说明
 
@@ -47,15 +47,13 @@ Java 17 + Spring Boot + 原生 HTML/CSS/JS + 本地 JSON + Java2D。一个 JAR �
 | `src/main/resources/templates/` | 横竖屏底图，Java 程序在图上填入动态内容。 |
 | `src/main/resources/application.properties` | 默认端口、监听地址、数据目录、字体配置。 |
 | `src/test/` | 服务端自动化测试。 |
-| `deploy/kindle/` | Kindle 脚本、菜单、配置示例与完整越狱/联网/安装教程。源码版不含大量生成的图块。 |
-| `deploy/nginx/` | 可选公网 HTTPS 反向代理、账号密码保护示例与部署说明。 |
 | `docs/API.md` | 接口速查。 |
 | `docs/PUBLISHING.md` | 整理文件夹、上传 GitHub 和交付步骤。 |
 | `docs/*.png` | 使用演示数据生成的横竖屏示例图。 |
 | `docs/其他设计与验证文档` | 设计思路和当时的验证记录，以当前 README 为安装依据。 |
 | `scripts/make-client-assets.py` | 在电脑生成横竖版时钟、电量图块，需要 Python 和 Pillow。 |
 | `scripts/prepare-share.py` | 重新生成可直接上传的目录，不生成压缩包或校验文件。 |
-| `scripts/share-notes/` | 各分享文件夹的中文说明模板。 |
+| `scripts/kindle-tools/` | 早期资源生成及触摸验证工具，普通安装不需要运行。 |
 
 ## 启动服务器
 
@@ -129,7 +127,7 @@ mvn clean package
 | 电池 23:30–06:30 | 每小时快照和联网，其余时间休眠 |
 | 手动进入或电源键唤醒 | 约 120 秒交互时间，之后回到自动策略 |
 
-电量百分比只作显示，不参与分档。自动电池模式关闭前光；交互及退出恢复此前亮度。断网保留缓存画面。休眠时显示的是快照时间；返回主页前先短按电源键，再点房子。详见 [省电说明](deploy/kindle/HYBRID_POWER.md)。
+电量百分比只作显示，不参与分档。自动电池模式关闭前光；交互及退出恢复此前亮度。断网保留缓存画面。休眠时显示的是快照时间；返回主页前先短按电源键，再点房子。详见 [省电说明](02-Kindle客户端脚本/kindle-dashboard/HYBRID_POWER.md)。
 
 客户端来自 PW4 实机流程；**本次整理后的新机安装流程尚未在第二台全新设备验证**。不同固件的触摸、RTC、系统进程和网络工具可能不同，不承诺通用适配或固定续航天数。
 
@@ -156,7 +154,7 @@ Kindle 升级前执行 `sh /mnt/us/extensions/kindle-dashboard/control.sh home`�
 
 - **电脑能开，手机打不开**：检查监听地址、防火墙、服务器 IPv4、访客网络隔离。
 - **Kindle 没更新**：检查服务器休眠、Wi-Fi 和 `server-url.txt`；电池模式需等待对应更新周期。
-- **下载到 HTML/401**：进了登录页；公网代理必须精确放行设备只读接口。
+- **下载到 HTML/401**：确认填写的是服务端地址，且返回 JSON 或 ZIP；按本教程使用同一可信家庭局域网直连。
 - **中文空白/乱码**：安装中文字体或设置 `BOARD_FONT_PATH` 后重启。
 - **点房子没反应**：先按电源键；再检查 PW4 型号及 evtest，必要时 SSH 执行 `control.sh home`。
 - **SSH 断开**：电池模式会休眠，插电、唤醒后再连接。

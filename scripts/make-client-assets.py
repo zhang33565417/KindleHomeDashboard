@@ -6,7 +6,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--font', required=True, help='Chinese font for sleep label and battery')
 p.add_argument('--bold-font', required=True, help='Font for clock digits')
-p.add_argument('--output', type=Path, default=Path('deploy/kindle/layout-assets'))
+p.add_argument('--output', type=Path, default=Path('02-Kindle客户端脚本/kindle-dashboard/layout-assets'))
 a = p.parse_args()
 for layout in ('portrait-v1', 'landscape-v1'):
     (a.output / layout).mkdir(parents=True, exist_ok=True)

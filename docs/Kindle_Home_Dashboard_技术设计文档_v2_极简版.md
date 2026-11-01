@@ -8,7 +8,7 @@
 
 ## 0. 本版与 V1 的差别
 
-**明确删除**：MySQL、MyBatis、Flyway、Docker、Nginx、Spring Security、后台登录、用户与角色、Redis、消息队列、Vue/Vite/Node 构建、Playwright/Chromium、图片历史数据库、复杂任务队列、草稿/发布流程、多用户和多看板管理。
+**明确删除**：MySQL、MyBatis、Flyway、Docker、Spring Security、后台登录、用户与角色、Redis、消息队列、Vue/Vite/Node 构建、Playwright/Chromium、图片历史数据库、复杂任务队列、草稿/发布流程、多用户和多看板管理。
 
 **保留**：日期天气、孕周与预产期倒计时、今日安排、胎动计数、自定义文本/倒计时、模块拖动缩放、可配置分辨率、灰度 PNG、手机管理、天气缓存、文件持久化、后续 Kindle 拉图接口。
 

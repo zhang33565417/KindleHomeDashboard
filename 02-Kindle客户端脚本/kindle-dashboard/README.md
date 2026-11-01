@@ -98,7 +98,7 @@ kindle-dashboard/
 http://192.168.1.100:8080
 ```
 
-这是运行 JAR 的电脑 IP 和端口；不带 `/api/image`、`/api/version` 或末尾斜杠，不加引号。不要将服务器密码写在 URL 中。本项目没有默认公共服务器。公网 HTTPS 使用自己的域名并按 Nginx 指南部署；旧 Kindle 的证书/TLS 要实测，不用跳过证书检查代替修复。
+这是运行 JAR 的电脑 IP 和端口；不带 `/api/image`、`/api/version` 或末尾斜杠，不加引号。不要将服务器密码写在 URL 中。本项目没有默认公共服务器。本教程使用同一可信家庭局域网内的服务端地址。
 
 ### 补齐 FBInk 和 evtest
 
@@ -124,7 +124,7 @@ python -m pip install Pillow
 python scripts/make-client-assets.py --font C:/Windows/Fonts/simsun.ttc --bold-font C:/Windows/Fonts/timesbd.ttf
 ```
 
-Linux 可使用自己安装的 Noto CJK 和衬线字体路径。输出在 `deploy/kindle/layout-assets/`，与脚本一起复制。旧 `make-*.py` 用于历史资源维护，新安装直接使用 `scripts/make-client-assets.py`，无需生成旧农历表。
+Linux 可使用自己安装的 Noto CJK 和衬线字体路径。输出在 `02-Kindle客户端脚本/kindle-dashboard/layout-assets/`，与脚本一起复制。旧资源维护工具位于 `scripts/kindle-tools/`；新安装使用 `scripts/make-client-assets.py`，无需生成旧农历表。
 
 ## 5. 检查并启动
 
