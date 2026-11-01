@@ -29,9 +29,9 @@ __pycache__/
 # 本地历史维护记录，不属于公开交付内容。
 /docs/history/
 # 客户端使用后生成的配置、缓存和运行状态。
-/02-Kindle客户端/kindle-dashboard/server-url.txt
-/02-Kindle客户端/kindle-dashboard/frames/
-/02-Kindle客户端/kindle-dashboard/frame-current
-/02-Kindle客户端/kindle-dashboard/frame-previous
-/02-Kindle客户端/kindle-dashboard/current-version.txt
-/02-Kindle客户端/kindle-dashboard/bin/
+/02-Kindle客户端脚本/kindle-dashboard/server-url.txt
+/02-Kindle客户端脚本/kindle-dashboard/frames/
+/02-Kindle客户端脚本/kindle-dashboard/frame-current
+/02-Kindle客户端脚本/kindle-dashboard/frame-previous
+/02-Kindle客户端脚本/kindle-dashboard/current-version.txt
+/02-Kindle客户端脚本/kindle-dashboard/bin/

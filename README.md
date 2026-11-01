@@ -36,8 +36,8 @@ Java 17 + Spring Boot + 原生 HTML/CSS/JS + 本地 JSON + Java2D。一个 JAR �
 
 | 文件/目录 | 作用 |
 | --- | --- |
-| [01-服务端/](01-服务端/文件说明.md) | 可直接运行的 JAR，含运行、数据目录和备份说明。 |
-| [02-Kindle客户端/](02-Kindle客户端/文件说明.md) | 可复制到 Kindle 的完整客户端与图块，含各脚本用途说明。 |
+| [01-服务端jar包/](01-服务端jar包/文件说明.md) | 可直接运行的 JAR，含运行、数据目录和备份说明。 |
+| [02-Kindle客户端脚本/](02-Kindle客户端脚本/文件说明.md) | 可复制到 Kindle 的完整客户端与图块，含各脚本用途说明。 |
 | `README.md` | 项目介绍、运行要求、服务器启动、设置、日常使用和排错。 |
 | `pom.xml` | Java/Maven 项目配置与依赖。执行 `mvn clean package` 构建。 |
 | `.gitignore` | 防止把数据、密钥、设备备份、生成文件等误提交 Git。 |
@@ -61,7 +61,7 @@ Java 17 + Spring Boot + 原生 HTML/CSS/JS + 本地 JSON + Java2D。一个 JAR �
 
 ### 使用服务端文件夹
 
-仓库根目录放置本 README 和项目源码；`01-服务端`、`02-Kindle客户端` 分别存放可运行程序和设备文件，每处都有中文文件说明。使用 `01-服务端/kindle-home-dashboard.jar` 启动服务。发布者整理步骤见 [分享与发布指南](docs/PUBLISHING.md)。运行只需 Java 17，自行编译另需 Maven 3.6.3+。
+仓库根目录放置本 README 和项目源码；`01-服务端jar包`、`02-Kindle客户端脚本` 分别存放可运行程序和设备文件，每处都有中文文件说明。使用 `01-服务端jar包/kindle-home-dashboard.jar` 启动服务。发布者整理步骤见 [分享与发布指南](docs/PUBLISHING.md)。运行只需 Java 17，自行编译另需 Maven 3.6.3+。
 
 把 JAR 放进独立目录，在该目录打开终端：
 

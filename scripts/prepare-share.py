@@ -48,7 +48,7 @@ if out.resolve().parent != (ROOT / 'share').resolve() or out.is_symlink():
 if out.exists():
     shutil.rmtree(out)
 out.mkdir(parents=True)
-folders = ['01-服务端', '02-Kindle客户端']
+folders = ['01-服务端jar包', '02-Kindle客户端脚本']
 for name in folders:
     (out / name).mkdir()
 
