@@ -1,135 +1,157 @@
-# Kindle Home Dashboard · V2 极简版
+# Kindle Home Dashboard · Kindle 家庭信息看板
 
-**分支说明：`lan` 用于本机及可信家庭局域网部署版本，该版本的后续维护在此分支进行。**
+把闲置 Kindle 变成家庭信息屏：日期、农历、天气、孕周、今日安排、胎动记录和自定义寄语。手机修改内容，Kindle 自动更新；支持横竖屏、本地时钟、电量显示、点击房子返回主页，以及定时休眠。
 
-个人家庭看板：**Java 17 + Spring Boot 3 + 原生 HTML/CSS/JS + 本地 JSON + Java2D**。一个 JAR 同时提供管理页面、API 和灰度 PNG，无前端构建步骤。
+Java 17 + Spring Boot + 原生 HTML/CSS/JS + 本地 JSON + Java2D。一个 JAR 提供管理页面、API 和灰度图片，无需 Node 或数据库。Kindle 上运行 Shell + FBInk，不需要 Java 或 Python。
 
-**当前采用用户新提供的横版、竖版固定底图。** 孕妇、宝宝、山水、图标和卡片位置均为固定底图；程序只更新日期、农历、时间、天气、孕周、安排、胎动及指定文案，不再提供模块拖动、缩放或字号编辑。整张图片仍可按 Kindle 的输出像素等比缩放，不会改变模块比例。
+![竖版演示，使用示例数据](docs/dashboard-example.png)
 
-> **无登录，只能在本机或可信家庭局域网运行，不可直接暴露公网。** 能访问服务的人都能查看和修改家庭数据。默认只监听 `127.0.0.1`。
+[横版演示](docs/dashboard-landscape-example.png)
 
-公网版本在 `codex/internet` 分支准备了 [Nginx 部署配置与步骤](deploy/nginx/README.md)：应用保持原样，由 HTTPS 入口保护管理页面与接口，仅图片读取接口免认证（图片内容公开）。部署时按该文档限制应用端口，不能直接开放 8080。
+## 先确认设备与环境
 
-## 启动
+| 项目 | 要求 |
+| --- | --- |
+| Kindle | 当前客户端针对 **Paperwhite 4（PW4），物理屏幕 1072 × 1448**；其他型号尚未适配 |
+| 越狱 | 需要 KUAL、SSH 工具、FBInk；越狱方法取决于具体型号和固件 |
+| 服务器 | 可持续运行的电脑、NAS 或 Linux 主机，Java 17、中文字体 |
+| 网络 | 入门建议 Kindle、手机、服务器连接同一个可信家庭 Wi-Fi |
+| 操作 | 需要复制文件、编辑配置、执行 SSH 命令 |
 
-已有Java 17时，可直接下载本分支的[可执行JAR](dist/kindle-home-dashboard-0.1.0.jar)和[SHA256校验文件](dist/kindle-home-dashboard-0.1.0.jar.sha256)，不需要安装Maven。下载到独立文件夹后运行：
+**服务端没有内置登录，不要将 8080 映射到公网。** 公网使用参阅 [Nginx 认证部署](deploy/nginx/README.md)。胎动功能只作手动记录，不提供医学判断。
 
-```powershell
-java -jar kindle-home-dashboard-0.1.0.jar --server.address=0.0.0.0
+## 从零安装顺序
+
+1. 按下文启动服务器，先在电脑和手机上看到看板。
+2. 按 [Kindle 安装与联网指南](deploy/kindle/README.md) 确认型号、固件、越狱，安装 KUAL/MRPI。
+3. 按设备指南连接 Wi-Fi，安装 USBNetwork/USBNetLite，测试 SSH。
+4. 安装本项目客户端，填写自己的服务器地址，补齐 FBInk、evtest。
+5. 检查后进入看板，验证内容更新、返回主页和休眠唤醒。
+
+**设备完整步骤：[越狱 → Wi-Fi/USB Network → SSH → 安装看板 → 排错与卸载](deploy/kindle/README.md)。**
+
+## 文件在哪里
+
+- [01-服务端](01-服务端/文件说明.md)：运行 JAR 的方法。
+- [02-Kindle客户端](02-Kindle客户端/文件说明.md)：复制到 Kindle 的文件及用途。
+- [根目录文件说明](文件说明.md)：源码、配置和文档的作用。
+
+## 启动服务器
+
+### 使用服务端文件夹
+
+仓库根目录放置本 README 和项目源码；`01-服务端`、`02-Kindle客户端` 分别存放可运行程序和设备文件，每处都有中文文件说明。使用 `01-服务端/kindle-home-dashboard.jar` 启动服务。发布者整理步骤见 [分享与发布指南](docs/PUBLISHING.md)。运行只需 Java 17，自行编译另需 Maven 3.6.3+。
+
+把 JAR 放进独立目录，在该目录打开终端：
+
+```sh
+java -version
+java -jar kindle-home-dashboard.jar
 ```
 
-仅在可信家庭局域网开放访问；数据自动保存在启动目录的 `data/`，不包含在JAR中。
+打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。首次运行在**当前工作目录**生成 `data/`，包括设置、家庭记录和缓存图片。预产期初始为空，请自行填写。
 
-要求 JDK **17**、Maven **3.6.3+**；首次构建需要联网下载依赖。请先用 `java -version`、`mvn -version` 确认两者使用 JDK 17（本机默认 Java 8 需要切换）。
+### 允许手机和 Kindle 访问
 
-```powershell
-# 按本机安装位置调整；只影响当前 PowerShell 窗口
-$env:JAVA_HOME = 'D:\Java\JDK\jdk-17'
-$env:Path = "$env:JAVA_HOME\bin;D:\Java\apache-maven-3.9.9\bin;$env:Path"
-mvn spring-boot:run
+Ctrl+C 停止刚才的进程，仍在同一目录启动：
+
+```sh
+java -jar kindle-home-dashboard.jar --server.address=0.0.0.0 --server.port=8080
 ```
 
-打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。或打包后直接运行：
+Windows 执行 `ipconfig`，找到当前联网适配器的 IPv4，例如 `192.168.1.100`。手机访问 `http://192.168.1.100:8080`，Kindle 也使用这个地址。不能填写 `127.0.0.1`、`localhost` 或 `0.0.0.0`，它们不是供其他设备访问的服务器地址。
 
-```powershell
+Windows 使用专用家庭网络，防火墙仅允许 Java/TCP 8080 从可信家庭网段访问。建议路由器为服务器保留 DHCP 地址，避免重启后 IP 改变。不要使用隔离设备的访客 Wi-Fi。电脑关机或休眠会停止更新，Kindle 保留缓存画面。
+
+Linux 安装运行环境，例如 Debian/Ubuntu：
+
+```sh
+sudo apt-get update
+sudo apt-get install openjdk-17-jre-headless fonts-noto-cjk
+mkdir -p ~/kindle-dashboard
+cd ~/kindle-dashboard
+# 把 JAR 上传至此，再运行上面的 java -jar 命令。
+```
+
+首次用前台终端验证，长期运行交给自己的服务管理器，固定工作目录和数据目录。
+
+### 从源码构建
+
+在含 `pom.xml` 的目录执行。`java -version`、`mvn -version` 都应使用 Java 17；首次构建需要联网下载依赖。
+
+```sh
 mvn clean package
-java -jar target/kindle-home-dashboard-0.1.0.jar
+java -jar target/kindle-home-dashboard-0.1.0.jar --server.address=0.0.0.0
 ```
 
-如果 Maven Central 连接超时，可在本机 Maven 设置中配置可用的镜像仓库，不属于项目运行依赖。
+Windows 如默认 Java 不对，可在当前 PowerShell 设置实际路径：
 
-重新打包前请先停止本项目运行中的 JAR，避免 Windows 文件占用；完成打包后再启动。
+```powershell
+$env:JAVA_HOME = 'C:\实际路径\jdk-17'
+$env:Path = "$env:JAVA_HOME\bin;C:\实际路径\apache-maven\bin;$env:Path"
+mvn clean package
+```
 
-运行 JAR 只需 Java 17 和中文字体，不需要 Maven、Node、数据库或浏览器内核。工程没有 MySQL、MyBatis、Flyway、Redis、登录、Docker 等组件。
+## 设置与日常使用
 
-## 使用
+1. 在“设置”填写城市、经纬度、预产期、时区（建议 `Asia/Shanghai`）。
+2. PW4 竖版 **1072 × 1448**，横版 **1448 × 1072**；保存成功后，Kindle 下次联网自动切换。客户端物理输出固定 1072 × 1448，不代表其他分辨率设备兼容。
+3. 在“日常记录”维护安排和胎动计数，在“图中文字”修改产检和寄语。插画、卡片位置固定，不支持拖动排版。
+4. 图片最多显示四条今日安排、两段最近胎动会话，完整记录仍保存在管理页。
 
-1. 首次启动自动在当前工作目录的 `./data` 创建设置、布局、安排、胎动、天气缓存及 `dashboard.png`。默认城市为演示用郑州，预产期为空。
-2. “设置”中填写城市、经纬度、预产期、时区和图片宽高，再保存。默认 1072 × 1448 只是示例，**请按 Kindle 真实分辨率修改**，范围为 400–3000 像素。可在“图片方向”中选择横版或竖版，切换会自动交换宽高，保存后生效；也可直接修改宽高。宽大于高使用横版底图，否则使用竖版底图。竖版逻辑坐标为1080 × 1456，横版为1457 × 1079，输出按比例缩放，比例不同时保留白边。
-3. “日常记录”支持按日期新增、编辑、完成、删除安排；PNG 只展示配置时区的今天。
-4. 胎动先“开始计数”，再“记一次”；可撤销最近一次、结束、按日期查看历史及编辑备注。进行中的会话重启后可继续，跨午夜按每次点击的实际时间归属当天。仅作手动记录，不作医学判断。
-5. “图中文字”编辑下次产检信息及底部寄语。新图去掉底部三条提醒卡片及其编辑入口；原提醒、便签和倒计时档案仍完整保留。
-6. 固定模板展示最多四条今日安排、两段最近胎动会话。超出部分仍完整保存并可在管理页查看；长文字会在固定区域内缩小或省略。插画和模块边框不能移动，原布局中的坐标、大小和字号不再影响图片。
-7. 右侧预览直接来自服务端 `GET /api/image`，不是 HTML 模板模拟图。下载得到同一张真实灰度 PNG。所有已保存内容即时重绘；服务按北京时间整点、半点生成新图及新版本，天气仍按设置间隔刷新。旧管理页的自动生成间隔字段保留兼容，不再控制后端调度。
+服务端按北京时间整点、半点重绘，保存内容也会重绘。天气来自 [Open-Meteo](https://open-meteo.com/)（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)），失败时显示不可用或上次成功缓存，不伪造实时数据。
 
-天气由 [Open-Meteo](https://open-meteo.com/) 提供（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)），包含气温、最高最低温、湿度和km/h风速；旧缓存没有风速时显示“—”，刷新成功后补齐。网络超时或数据缺失不会伪造数值。首次失败显示不可用；有缓存时保留原城市、原数值和上次成功时间。修改位置后可手动刷新天气，新位置请求失败时继续明确标注旧城市缓存。
+| 状态 | 当前客户端行为（北京时间） |
+| --- | --- |
+| 插电，包括充满 | 每分钟本地时钟，每 30 秒检查网络，保持唤醒 |
+| 电池 06:30–23:30 | 每 10 分钟更新时钟/检查网络，任务之间进入 RAM 休眠 |
+| 电池 23:30–06:30 | 每小时快照和联网，其余时间休眠 |
+| 手动进入或电源键唤醒 | 约 120 秒交互时间，之后回到自动策略 |
 
-底图来自用户参考图，使用内置 imagegen 一次性清除示例数据，分别保存于 `src/main/resources/templates/family-board-portrait.png` 和 `src/main/resources/templates/family-board-landscape.png` 并随JAR打包。运行时完全使用Java2D填字，不请求图片生成服务。农历采用 [lunar-java](https://github.com/6tail/lunar-java) 计算，不照抄参考图的静态日期或百分比。
+电量百分比只作显示，不参与分档。自动电池模式关闭前光；交互及退出恢复此前亮度。断网保留缓存画面。休眠时显示的是快照时间；返回主页前先短按电源键，再点房子。详见 [省电说明](deploy/kindle/HYBRID_POWER.md)。
 
-## 配置与手机访问
+客户端来自 PW4 实机流程；**本次整理后的新机安装流程尚未在第二台全新设备验证**。不同固件的触摸、RTC、系统进程和网络工具可能不同，不承诺通用适配或固定续航天数。
+
+## 配置与备份
 
 | 环境变量 | 默认值 | 用途 |
-|---|---|---|
-| `SERVER_PORT` | `8080` | 端口 |
+| --- | --- | --- |
 | `SERVER_ADDRESS` | `127.0.0.1` | 监听地址 |
-| `BOARD_DATA_DIR` | `./data` | 数据和最新 PNG 目录 |
-| `BOARD_FONT_PATH` | 空 | 可选中文 TTF/OTF 字体文件绝对路径 |
+| `SERVER_PORT` | `8080` | 端口 |
+| `BOARD_DATA_DIR` | `./data` | 数据和生成图片目录 |
+| `BOARD_FONT_PATH` | 空 | 可选中文 TTF/OTF 字体绝对路径 |
 
-仅在可信家庭网络需要手机访问时：
+Windows 优先使用系统宋体；Linux 可安装 Noto CJK。缺少中文字体时会报告渲染错误。字体文件不随项目分发。农历使用 [lunar-java](https://github.com/6tail/lunar-java)。
 
-```powershell
-$env:SERVER_ADDRESS = '0.0.0.0'
-$env:SERVER_PORT = '8080'
-java -jar target/kindle-home-dashboard-0.1.0.jar
+备份/恢复前先停止服务，再复制/替换整个 `data/`。升级前备份 JAR 和数据，替换 JAR 后保持启动工作目录、端口、字体与数据路径不变。一个数据目录只供一个进程使用。JSON 损坏时保留原文件及 `.corrupt-*` 备份并拒绝启动，应从备份恢复。
+
+Kindle 升级前执行 `sh /mnt/us/extensions/kindle-dashboard/control.sh home`，备份扩展目录，再覆盖新客户端；保留自己的 `server-url.txt` 和 `bin/`。
+
+## 目录与接口
+
+```text
+src/                   服务端、管理页、底图与测试
+deploy/kindle/        Kindle 脚本、KUAL 菜单、配置示例和设备教程
+deploy/nginx/         可选公网 HTTPS + Basic Auth
+scripts/               图块生成与分享文件夹生成
+docs/                 演示图、接口与发布指南
+docs/history/         历史记录，不作为当前安装步骤
+share/                 本地生成的 GitHub 上传目录（忽略，不提交）
+data/、dist/data/       家庭数据（忽略，不提交）
+.kindle-maintenance/    私人维护与备份（忽略，不提交）
 ```
 
-手机与电脑连接同一家庭网络，访问 `http://电脑局域网IP:8080`。防火墙只允许可信家庭网段；不要映射公网端口。跨设备访问无需账号密码。
+常用接口：`/api/health`、`/api/version`、`/api/image`、`/api/kindle/frame`。设备依赖版本和 frame 两个接口，frame 返回清单、整图、时钟与电量背景 ZIP。普通 PNG 不能替代 frame 协议。详见 [接口速查](docs/API.md)。
 
-## 字体和数据保护
+## 常见问题
 
-- Windows 自动优先使用宋体以接近参考图；Linux 建议安装 `fonts-noto-cjk`（优先Noto Serif CJK）。也可用 `BOARD_FONT_PATH` 指定有授权的中文字体文件。没有中文字体时页面提示错误并保留旧图，不悄悄输出乱码。没有打包商用字体。
-- 所有写入串行处理，JSON 和 PNG 先写临时文件再替换；文件系统支持时使用原子移动。图片失败保留旧图和旧成功时间，页面提示数据已保存但重绘失败。
-- 无法解析的 JSON 会保留原文件、复制 `.corrupt-时间戳` 备份并拒绝启动；不要删除原文件来“修复”，应从备份恢复或人工修复格式。合法 JSON 的业务字段不合法也会拒绝启动并保留原文件。
-- `data/` 和 `target/` 已加入 `.gitignore`。一个数据目录仅供一个服务进程使用；不支持多实例共同写入。
-- 备份/恢复：**先停止服务**，复制/替换整个数据目录。目录位置相对启动时工作目录，与 JAR 所在位置不一定相同。不要把家庭数据公开或提交 Git。
+- **电脑能开，手机打不开**：检查监听地址、防火墙、服务器 IPv4、访客网络隔离。
+- **Kindle 没更新**：检查服务器休眠、Wi-Fi 和 `server-url.txt`；电池模式需等待对应更新周期。
+- **下载到 HTML/401**：进了登录页；公网代理必须精确放行设备只读接口。
+- **中文空白/乱码**：安装中文字体或设置 `BOARD_FONT_PATH` 后重启。
+- **点房子没反应**：先按电源键；再检查 PW4 型号及 evtest，必要时 SSH 执行 `control.sh home`。
+- **SSH 断开**：电池模式会休眠，插电、唤醒后再连接。
 
-## 接口
+## 第三方与素材
 
-接口默认返回 JSON，输入错误返回 400，不存在记录返回 404。日期格式为 `YYYY-MM-DD`，时间以 ISO 8601 存储，展示和统计用设置时区。
-
-| 方法 | 地址 | 内容 |
-|---|---|---|
-| GET | `/api/state` | 聚合设置、布局、孕周、天气、今日安排/胎动和生成状态 |
-| GET / PUT | `/api/settings` | 读取/保存设置 |
-| GET | `/api/layout` | 保留读取历史布局数据；PUT拒绝修改位置和尺寸 |
-| GET / PUT | `/api/content` | 读取/保存五处固定文案；数据仍保存于layout.json |
-| GET / POST | `/api/todos` | 按 `?date=` 查询 / 新增安排 |
-| PUT / DELETE | `/api/todos/{id}` | 编辑（含完成）/ 删除 |
-| GET | `/api/movements?date=YYYY-MM-DD` | 当日次数和相关会话；整段会话可能跨日 |
-| POST | `/api/movements/start` | 新建或继续唯一的未结束会话 |
-| POST | `/api/movements/{id}/tap`、`/undo`、`/end` | 记一次、撤销、结束 |
-| PUT | `/api/movements/{id}/note` | 保存会话备注 |
-| GET / POST | `/api/weather`、`/api/weather/refresh` | 读取缓存 / 手动刷新 |
-| POST | `/api/render` | 重绘并返回聚合状态；检查 `renderError` |
-| GET | `/api/image` | 最新成功 PNG；`?download=true` 下载 |
-| GET | `/api/version` | 当前成功图片版本；只读、禁止缓存 |
-| GET | `/api/health` | 进程健康检查 |
-
-新增安排请求示例：
-
-```json
-{
-  "date": "2026-10-21",
-  "content": "阅读半小时",
-  "done": false,
-  "sort": 10
-}
-```
-
-## 验证与范围
-
-`mvn test` 运行少量关键闭环与失败保护测试。实际验收记录见 [TEST-RESULTS.md](TEST-RESULTS.md)，程序真实生成示例见 [docs/dashboard-example.png](docs/dashboard-example.png)及 [横版示例](docs/dashboard-landscape-example.png)（仅演示数据）。
-
-Kindle 可每 30 秒请求 `GET /api/version`，成功返回 `200 application/json`：
-
-```json
-{
-  "version": "1792627200000"
-}
-```
-
-将版本作为不透明字符串比较，变化后请求 `GET /api/image?v=1792627200000`；需要附件下载时加 `&download=true`。图片接口返回 `200 image/png` 和完整 PNG 二进制；`v` 只用于避开缓存，无论其值是什么都返回最新成功图片，不选择历史版本，也不触发生成。两接口成功响应包含 `Cache-Control: no-store`、`Pragma: no-cache`、`Expires: 0`。查询后若恰有更新，下载可能取得更新的完整图片，下次轮询会再次发现版本变化。
-
-每次成功生成均递增版本，失败保留旧图和旧版本。版本存于 PNG 文件修改时间，启动时完整解码有效图片并恢复版本；没有有效图片则尝试生成，仍失败时两接口返回 `404` 和含 `message` 的 JSON 错误。备份/迁移图片时应保留修改时间；数据目录应使用支持毫秒修改时间与同目录原子替换的本地文件系统，且只运行一个服务实例。回退部署可恢复原 JAR，业务 JSON 格式未改变。
-
-本阶段**未实现 Kindle 客户端、KUAL/FBInk 脚本、自动推送、定时唤醒与休眠**。版本与图片接口为后续 Kindle 主动拉取提供支持，当前下载图片不代表 Kindle 已能自动更新。也未实现图片上传、医学预警、多用户、多实例或复杂历史报表。
+越狱、KUAL、MRPI、USBNetwork/USBNetLite 和 FBInk 由各自上游维护，下载与授权见设备指南。分享文件夹不捆绑这些第三方可执行文件。底图基于项目提供的参考图经 AI 编辑清理，运行时只用 Java2D 填字。目前未声明整体开源许可证；公开分享不等于授予任意再授权或商用权利，选择许可证前需要确认底图及其他素材来源。

@@ -9,11 +9,11 @@
 | 路径 | 访问要求 |
 |---|---|
 | `/`、页面脚本及样式 | 账号密码 |
-| 所有业务 API（包括 `/api/health`） | 账号密码 |
-| 精确路径 `/api/image` 的 GET / HEAD | 无需账号密码 |
-| `/api/image` 的其他方法 | 拒绝，返回 403 |
+| 所有业务 API（包括 `/api/health`，除下方设备只读接口） | 账号密码 |
+| 精确路径 `/api/image`、`/api/version`、`/api/kindle/frame` 的 GET / HEAD | 无需账号密码 |
+| 上述三个只读路径的其他方法 | 拒绝，返回 403 |
 
-查询参数不改变路径匹配，所以 `/api/image?download=true` 同样公开。图片会展示日期、天气、安排、孕周、胎动及自定义文字等信息；免认证表示任何知道地址的人都可以查看。不要放行整个 `/api/`。
+设备端使用 `/api/version` 与 `/api/kindle/frame`（含 `?contentOnly=true`）；完整画面包也包含家庭画面。查询参数不改变路径匹配，所以 `/api/image?download=true` 同样公开。图片会展示日期、天气、安排、孕周、胎动及自定义文字等信息；免认证表示任何知道地址的人都可以查看。不要放行整个 `/api/`。
 
 ## 1. 准备域名、证书及应用
 
@@ -92,6 +92,8 @@ curl -I -u admin https://board.example.com/api/state
 
 # 无账号拉图：应返回 200、Content-Type: image/png，得到实际 PNG。
 curl --fail -D - -o dashboard-check.png https://board.example.com/api/image
+curl --fail https://board.example.com/api/version
+curl --fail -o frame-check.zip https://board.example.com/api/kindle/frame
 
 # 图片接口不允许写操作：应返回 403。
 curl -i -X POST https://board.example.com/api/image
@@ -102,12 +104,12 @@ curl -I http://board.example.com/api/image
 
 再用浏览器打开域名，确认出现账号密码框，登录后能保存设置、添加并删除一条测试安排，以及预览和下载图片。从另一台电脑确认公网 IP 的 8080 端口无法连接。
 
-Kindle 拉图地址为 `https://你的域名/api/image`，无需账号密码。本配置只提供图片读取入口，没有实现设备端定时拉图、唤醒或显示脚本。必须在实际 Kindle 上验证 HTTPS 证书和 TLS 兼容性；不要用跳过证书验证作为长期方案。
+Kindle 的 `server-url.txt` 填写 `https://你的域名`，不加接口后缀。客户端自动调用版本和 frame 接口；安装步骤见 [Kindle 指南](../kindle/README.md)。必须在实际 Kindle 上验证 HTTPS 证书和 TLS 兼容性；不要用跳过证书验证作为长期方案。
 
 ## 5. 回滚与验证范围
 
 回滚时先关闭该站点的公网入口或临时拒绝访问，再恢复备份的 Nginx 配置，执行 `nginx -t` 并重新加载。不要通过去掉认证来回滚。应用和数据均未改变，无需回滚数据库或 JSON。
 
-已核对当前应用图片接口为 `GET /api/image`，配置仅对该精确路径关闭认证。当前开发环境未安装 Nginx，未执行真实的 `nginx -t`、公网认证请求或 Kindle 测试；部署时必须完成上面的验收。此配置未额外实现登录尝试限流。
+配置仅对图片、版本、frame 三个精确路径关闭认证，管理接口仍需密码。当前开发环境未安装 Nginx，未执行真实的 `nginx -t`、公网认证请求或 Kindle 测试；部署时必须完成上面的验收。此配置未额外实现登录尝试限流。
 
 依据：[Nginx Basic Auth](https://nginx.org/en/docs/http/ngx_http_auth_basic_module.html)、[路径与方法限制](https://nginx.org/en/docs/http/ngx_http_core_module.html)、[反向代理](https://nginx.org/en/docs/http/ngx_http_proxy_module.html)。

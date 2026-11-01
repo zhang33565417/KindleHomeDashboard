@@ -35,6 +35,26 @@ class BoardTest {
         board = new BoardService(new JsonStore(mapper, directory.toString()), renderer, client);
     }
 
+    @Test void kindleFingerprintExcludesClockAcrossTenMinutes() throws Exception {
+        Path first=directory.resolve("first.png"), second=directory.resolve("second.png");
+        Instant start=Instant.parse("2026-11-01T04:00:00Z");
+        renderer.render(first,board.settings(),board.layout(),List.of(),List.of(),board.weather(),start);
+        renderer.render(second,board.settings(),board.layout(),List.of(),List.of(),board.weather(),start.plusSeconds(600));
+        assertFalse(Arrays.equals(Files.readAllBytes(first),Files.readAllBytes(second)));
+        assertEquals(KindleFrame.create("1",Files.readAllBytes(first),renderer,true).version(),
+                KindleFrame.create("2",Files.readAllBytes(second),renderer,true).version());
+    }
+
+    @Test void kindleContentVersionIgnoresRenderTimeButTracksVisibleContent() throws Exception {
+        String before=board.kindleContentFrame().version();
+        board.scheduledRender();
+        assertEquals(before,board.kindleContentFrame().version());
+        assertEquals(before,reopen().kindleContentFrame().version());
+        board.saveTodo(null,new Todo(null,LocalDate.now(ZoneId.of(board.settings().timezone())),"new visible task",false,10));
+        assertNotEquals(before,board.kindleContentFrame().version());
+        assertEquals(board.kindleContentFrame().version(),board.versionInfo().get("kindleVersion"));
+    }
+
     @Test void defaultFilesAndRealGrayPng() throws Exception {
         for (String name : List.of("settings.json", "layout.json", "todos.json", "movements.json", "weather.json", "dashboard.png")) assertTrue(Files.exists(directory.resolve(name)), name);
         BufferedImage image = ImageIO.read(directory.resolve("dashboard.png").toFile());
@@ -338,6 +358,60 @@ class BoardTest {
         assertEquals(landscape,restarted.settings(),"重启必须保持横版宽高");
         BufferedImage saved=ImageIO.read(restarted.imagePath().toFile());
         assertEquals(1448,saved.getWidth()); assertEquals(1086,saved.getHeight());
+    }
+
+    @Test void kindleBundleBindsBothLayoutsAndPaperToOneImageVersion() throws Exception {
+        var http = MockMvcBuilders.standaloneSetup(new BoardController(board)).build();
+        for (int[] size : List.of(new int[]{1072,1448},new int[]{1448,1072},new int[]{1600,900})) {
+            var old=board.settings();
+            board.saveSettings(new Settings(old.title(),old.timezone(),size[0],size[1],old.weather(),old.dueDate(),old.defaultRenderMinutes()));
+            clearInvocations(renderer);
+            var response=http.perform(get("/api/kindle/frame")).andExpect(status().isOk())
+                    .andExpect(header().string("Cache-Control","no-store")).andReturn().getResponse();
+            Map<String,byte[]> entries=unzip(response.getContentAsByteArray());
+            assertEquals(Set.of("manifest.txt","frame.png","clock-background.png","battery-background.png"),entries.keySet());
+            Properties manifest=new Properties(); manifest.load(new java.io.ByteArrayInputStream(entries.get("manifest.txt")));
+            String layout=size[0]>size[1]?"landscape-v1":"portrait-v1";
+            assertEquals(layout,manifest.getProperty("layout"));
+            assertEquals(board.version(),manifest.getProperty("version"));
+            assertEquals(manifest.getProperty("version"),response.getHeader("X-Board-Version"));
+            assertEquals(layout,response.getHeader("X-Board-Layout"));
+            assertEquals(size[0]>size[1]?"90":"0",manifest.getProperty("rotation"));
+            BufferedImage image=ImageIO.read(new java.io.ByteArrayInputStream(entries.get("frame.png")));
+            assertEquals(1072,image.getWidth()); assertEquals(1448,image.getHeight());
+            for(String field:List.of("clock","clock_bg","battery","home")) {
+                int x=Integer.parseInt(manifest.getProperty(field+"_x")),y=Integer.parseInt(manifest.getProperty(field+"_y"));
+                int w=Integer.parseInt(manifest.getProperty(field+"_w")),h=Integer.parseInt(manifest.getProperty(field+"_h"));
+                assertTrue(x>=0&&y>=0&&w>0&&h>0&&x+w<=1072&&y+h<=1448,field);
+            }
+            BufferedImage paper=ImageIO.read(new java.io.ByteArrayInputStream(entries.get("clock-background.png")));
+            assertEquals(Integer.parseInt(manifest.getProperty("clock_bg_w")),paper.getWidth());
+            assertEquals(Integer.parseInt(manifest.getProperty("clock_bg_h")),paper.getHeight());
+            assertSame(board.kindleFrame(),board.kindleFrame(),"Same successful version must reuse its immutable bundle");
+            verify(renderer,never()).render(any(),any(),any(),any(),any(),any(),any());
+        }
+    }
+
+    @Test void failedLayoutChangeKeepsPreviousKindleGenerationAcrossRestart() throws Exception {
+        var before=board.kindleFrame(); var old=board.settings();
+        doThrow(new IOException("layout render failed")).when(renderer).render(any(),any(),any(),any(),any(),any(),any());
+        board.saveSettings(new Settings(old.title(),old.timezone(),1448,1072,old.weather(),old.dueDate(),60));
+        assertEquals("portrait-v1",board.versionInfo().get("layout"));
+        assertArrayEquals(before.bytes(),board.kindleFrame().bytes());
+        var recovered=reopen();
+        assertEquals("portrait-v1",recovered.versionInfo().get("layout"));
+        assertEquals(before.version(),recovered.kindleFrame().version());
+        Properties manifest=new Properties(); manifest.load(new java.io.ByteArrayInputStream(unzip(recovered.kindleFrame().bytes()).get("manifest.txt")));
+        assertEquals("portrait-v1",manifest.getProperty("layout"));
+    }
+
+    private static Map<String,byte[]> unzip(byte[] bytes) throws IOException {
+        Map<String,byte[]> entries=new LinkedHashMap<>();
+        try(var zip=new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(bytes))) {
+            java.util.zip.ZipEntry entry;
+            while((entry=zip.getNextEntry())!=null) { assertNull(entries.put(entry.getName(),zip.readAllBytes())); zip.closeEntry(); }
+        }
+        return entries;
     }
 
     private BoardService reopen() throws IOException { return new BoardService(new JsonStore(mapper,directory.toString()),renderer,client); }

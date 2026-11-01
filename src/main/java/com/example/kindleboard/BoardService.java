@@ -27,6 +27,8 @@ public class BoardService {
     private List<Session> sessions;
     private Weather weather;
     private Instant imageAt;
+    private int imageWidth, imageHeight;
+    private KindleFrame.Bundle kindleCache;
     private Instant weatherAttempt;
     private String renderError = "";
 
@@ -47,7 +49,11 @@ public class BoardService {
         // 完整解码成功才复用旧图；版本随 PNG 的修改时间持久化，不依赖进程启动时间。
         if (Files.isRegularFile(imagePath())) {
             try {
-                if (ImageIO.read(imagePath().toFile()) != null) imageAt = Files.getLastModifiedTime(imagePath()).toInstant();
+                var decoded = ImageIO.read(imagePath().toFile());
+                if (decoded != null) {
+                    imageAt = Files.getLastModifiedTime(imagePath()).toInstant();
+                    imageWidth = decoded.getWidth(); imageHeight = decoded.getHeight();
+                }
             } catch (IOException e) { log.warn("已有图片无法读取，将重新生成"); }
         }
         if (imageAt == null) render();
@@ -207,6 +213,7 @@ public class BoardService {
             // 不支持原子替换时直接失败，避免进程中断留下半张图片或丢失旧版本。
             Files.move(pending, imagePath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             imageAt = Instant.ofEpochMilli(next); renderError = "";
+            imageWidth = settings.canvasWidth(); imageHeight = settings.canvasHeight(); kindleCache = null;
         } catch (Exception e) {
             renderError = "数据已保存，图片生成失败，保留上次成功图片。请检查数据目录权限、磁盘空间和中文字体。";
             log.warn("图片生成失败（{}），保留旧图", e.getClass().getSimpleName());
@@ -216,6 +223,33 @@ public class BoardService {
     public synchronized byte[] image() throws IOException {
         version();
         return Files.readAllBytes(imagePath());
+    }
+
+    public record ImageSnapshot(String version, String layout, int width, int height, byte[] bytes) {}
+    public synchronized ImageSnapshot imageSnapshot() throws IOException {
+        return new ImageSnapshot(version(), KindleFrame.Info.of(imageWidth,imageHeight).layout(), imageWidth,imageHeight,image());
+    }
+    public synchronized Map<String,Object> versionInfo() {
+        var info = KindleFrame.Info.of(imageWidth,imageHeight);
+        try {
+            return Map.of("version",version(),"kindleVersion",kindleContentFrame().version(),"layout",info.layout(),"rotation",info.rotation(),"width",imageWidth,"height",imageHeight);
+        } catch (IOException e) { throw new java.io.UncheckedIOException(e); }
+    }
+    public synchronized KindleFrame.Bundle kindleFrame() throws IOException {
+        String version = version();
+        if (kindleCache == null || !kindleCache.version().equals(version)) kindleCache = KindleFrame.create(version,image(),renderer);
+        return kindleCache;
+    }
+
+    private KindleFrame.Bundle contentCache;
+    private String contentSourceVersion;
+    public synchronized KindleFrame.Bundle kindleContentFrame() throws IOException {
+        String source=version();
+        if (contentCache==null || !source.equals(contentSourceVersion)) {
+            contentCache=KindleFrame.create(source,image(),renderer,true);
+            contentSourceVersion=source;
+        }
+        return contentCache;
     }
 
     /** 固定在整点、半点生成，即使数据没有变化也发布新版本；午夜自然包含在内。 */

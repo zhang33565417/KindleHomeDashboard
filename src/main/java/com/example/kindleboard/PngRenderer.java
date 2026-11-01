@@ -80,15 +80,30 @@ public class PngRenderer {
         JsonStore.replace(temporary, target);
     }
 
+    /** Same paper-only transform as render; used to restore local Kindle overlays. */
+    BufferedImage background(int width, int height) {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setColor(Color.WHITE); g.fillRect(0, 0, width, height);
+            boolean wide = width > height;
+            int templateWidth = wide ? 1457 : 1080, templateHeight = wide ? 1079 : 1456;
+            double scale = Math.min(width / (double) templateWidth, height / (double) templateHeight);
+            g.translate((width - templateWidth * scale) / 2, (height - templateHeight * scale) / 2);
+            g.scale(scale, scale);
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g.drawImage(wide ? landscapeTemplate : portraitTemplate, 0, 0, templateWidth, templateHeight, null);
+        } finally { g.dispose(); }
+        return image;
+    }
+
     /** 各方向只填自己的文字槽位；提醒卡片不再输出，历史内容仍留在档案中。 */
     private void drawFixed(Graphics2D g, Settings settings, Layout layout, List<Todo> todos, List<Session> sessions, Weather weather, Instant now, boolean wide) {
         ZoneId zone = ZoneId.of(settings.timezone());
         LocalDate today = now.atZone(zone).toLocalDate();
-        String heading = settings.title().equals("家里的每一天") ? "家庭信息看板" : settings.title();
-        if (!heading.equals("家庭信息看板")) {
-            clear(g, wide ? 120 : 110, 17, wide ? 620 : 530, 56);
-            line(g, heading, wide ? 125 : 115, 17, wide ? 610 : 520, 56, 42, true);
-        }
+        clear(g, wide ? 120 : 110, 17, wide ? 620 : 530, 56);
+        line(g, settings.title(), wide ? 125 : 115, 17, wide ? 610 : 520, 56, 42, true);
         headline(g, today.format(DateTimeFormatter.ofPattern("yyyy年M月d日")), 48, 114, wide ? 730 : 646, 85, true);
         line(g, today.format(DateTimeFormatter.ofPattern("EEEE", Locale.CHINA)), wide ? 846 : 50, wide ? 116 : 202, wide ? 190 : 145, 40, 34, false);
         line(g, lunarDate(today), wide ? 846 : 194, wide ? 169 : 202, wide ? 205 : 470, 35, 29, false);

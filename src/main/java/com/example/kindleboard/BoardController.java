@@ -41,19 +41,31 @@ public class BoardController {
 
     /** Kindle 轮询只查询版本；禁止浏览器和中间代理缓存，不触发渲染。 */
     @GetMapping("/version")
-    public ResponseEntity<Map<String, String>> version() {
+    public ResponseEntity<Map<String, Object>> version() {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .header(HttpHeaders.PRAGMA, "no-cache").header(HttpHeaders.EXPIRES, "0")
-                .body(Map.of("version", board.version()));
+                .body(board.versionInfo());
     }
 
     /** 只读取最新成功 PNG；可附加 ?v=版本 避免缓存，参数不选择历史图，也不触发生成。 */
     @GetMapping(value = "/image", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> image(@RequestParam(defaultValue = "false") boolean download) throws IOException {
+        var image = board.imageSnapshot();
         return ResponseEntity.ok().contentType(MediaType.IMAGE_PNG).cacheControl(CacheControl.noStore())
                 .header(HttpHeaders.PRAGMA, "no-cache").header(HttpHeaders.EXPIRES, "0")
                 .header(HttpHeaders.CONTENT_DISPOSITION, (download ? "attachment" : "inline") + "; filename=dashboard.png")
-                .body(board.image());
+                .header("X-Board-Version",image.version()).header("X-Board-Layout",image.layout())
+                .body(image.bytes());
+    }
+
+    /** Pixels, clean paper and touch geometry are one immutable generation. */
+    @GetMapping(value="/kindle/frame",produces="application/zip")
+    public ResponseEntity<byte[]> kindleFrame(@RequestParam(defaultValue="false") boolean contentOnly) throws IOException {
+        var frame=contentOnly ? board.kindleContentFrame() : board.kindleFrame();
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType("application/zip")).cacheControl(CacheControl.noStore())
+                .header(HttpHeaders.PRAGMA,"no-cache").header(HttpHeaders.EXPIRES,"0")
+                .header("X-Board-Version",frame.version()).header("X-Board-Layout",frame.info().layout())
+                .header("X-Board-Rotation",Integer.toString(frame.info().rotation())).body(frame.bytes());
     }
 
     private LocalDate date(LocalDate value) { return value == null ? LocalDate.now(ZoneId.of(board.settings().timezone())) : value; }
