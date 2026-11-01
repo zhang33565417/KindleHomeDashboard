@@ -53,7 +53,6 @@ Java 17 + Spring Boot + 原生 HTML/CSS/JS + 本地 JSON + Java2D。一个 JAR �
 | `docs/其他设计与验证文档` | 设计思路和当时的验证记录，以当前 README 为安装依据。 |
 | `scripts/make-client-assets.py` | 在电脑生成横竖版时钟、电量图块，需要 Python 和 Pillow。 |
 | `scripts/prepare-share.py` | 重新生成可直接上传的目录，不生成压缩包或校验文件。 |
-| `scripts/kindle-tools/` | 早期资源生成及触摸验证工具，普通安装不需要运行。 |
 
 ## 启动服务器
 

@@ -124,7 +124,7 @@ python -m pip install Pillow
 python scripts/make-client-assets.py --font C:/Windows/Fonts/simsun.ttc --bold-font C:/Windows/Fonts/timesbd.ttf
 ```
 
-Linux 可使用自己安装的 Noto CJK 和衬线字体路径。输出在 `02-Kindle客户端脚本/kindle-dashboard/layout-assets/`，与脚本一起复制。旧资源维护工具位于 `scripts/kindle-tools/`；新安装使用 `scripts/make-client-assets.py`，无需生成旧农历表。
+Linux 可使用自己安装的 Noto CJK 和衬线字体路径。输出在 `02-Kindle客户端脚本/kindle-dashboard/layout-assets/`，与脚本一起复制。使用 `scripts/make-client-assets.py` 即可生成当前客户端所需的全部图块。
 
 ## 5. 检查并启动
 
