@@ -113,8 +113,9 @@ async function loadHistory() {
   const result = await api('/movements?date=' + ($('movementDate').value || state.date));
   $('movementHistory').innerHTML = `<p class="muted">当日合计 ${result.count} 次 · ${result.sessions.length} 段会话</p>`;
   result.sessions.forEach(session => {
+    const status = session.endedAt ? time(session.endedAt) : session.id === state.activeSession?.id ? '计数中' : '已跨日';
     const box = document.createElement('div'); box.className = 'history-card';
-    box.innerHTML = `<strong>${esc(time(session.startedAt))} — ${session.endedAt ? esc(time(session.endedAt)) : '计数中'}</strong><p>整段会话 ${session.taps.length} 次</p><p class="taps">点击时间：${session.taps.length ? session.taps.map(tap => esc(time(tap.at, {second:'2-digit'}))).join('、') : '暂无点击'}</p><label>会话备注<textarea maxlength="500" aria-label="会话备注">${esc(session.note)}</textarea></label><button class="quiet">保存备注</button>`;
+    box.innerHTML = `<strong>${esc(time(session.startedAt))} — ${esc(status)}</strong><p>整段会话 ${session.taps.length} 次</p><p class="taps">点击时间：${session.taps.length ? session.taps.map(tap => esc(time(tap.at, {second:'2-digit'}))).join('、') : '暂无点击'}</p><label>会话备注<textarea maxlength="500" aria-label="会话备注">${esc(session.note)}</textarea></label><button class="quiet">保存备注</button>`;
     box.querySelector('button').onclick = () => run(async () => { await api('/movements/' + session.id + '/note', 'PUT', {note:box.querySelector('textarea').value}); await load(); }, '备注已保存');
     $('movementHistory').append(box);
   });

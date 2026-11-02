@@ -106,7 +106,7 @@ public class BoardService {
         boolean expired = weather.lastSuccessAt() == null || weather.lastSuccessAt().plusSeconds(settings.weather().refreshMinutes() * 60L).isBefore(Instant.now());
         result.put("weatherCached", weather.stale() || expired || !sameLocation(settings, weather));
         result.put("todos", todos(today())); result.put("movements", movements(today()));
-        result.put("activeSession", sessions.stream().filter(s -> s.endedAt() == null).findFirst().orElse(null));
+        result.put("activeSession", sessions.stream().filter(s -> isActiveToday(s, today(), ZoneId.of(settings.timezone()))).findFirst().orElse(null));
         result.put("imageAt", imageAt); result.put("renderError", renderError);
         result.put("font", renderer.fontWarning.isEmpty() ? "中文字体可用" : renderer.fontWarning);
         return result;
@@ -155,10 +155,17 @@ public class BoardService {
     }
 
     public synchronized Session start() throws IOException {
-        Optional<Session> active = sessions.stream().filter(s -> s.endedAt() == null).findFirst();
+        ZoneId zone = ZoneId.of(settings.timezone());
+        LocalDate date = today();
+        Optional<Session> active = sessions.stream().filter(s -> isActiveToday(s, date, zone)).findFirst();
         if (active.isPresent()) return active.get();
         Session value = new Session(UUID.randomUUID().toString(), Instant.now(), null, "", List.of());
-        List<Session> updated = new ArrayList<>(sessions); updated.add(value);
+        List<Session> updated = new ArrayList<>(sessions);
+        // 昨日忘记结束的会话在其最后记录日结束，不把历史次数带入今天。
+        updated.replaceAll(s -> s.endedAt() == null ? new Session(s.id(), s.startedAt(),
+                (s.taps().isEmpty() ? s.startedAt() : s.taps().get(s.taps().size() - 1).at())
+                        .atZone(zone).toLocalDate().plusDays(1).atStartOfDay(zone).toInstant(), s.note(), s.taps()) : s);
+        updated.add(value);
         persistSessions(updated); return value;
     }
 
@@ -166,6 +173,8 @@ public class BoardService {
     public synchronized Session changeSession(String id, String action, String note) throws IOException {
         Session old = sessions.stream().filter(s -> s.id().equals(id)).findFirst().orElseThrow(() -> new Missing("会话不存在"));
         require(action.equals("note") || old.endedAt() == null, "会话已结束，请开始新的计数");
+        require(!action.equals("tap") && !action.equals("undo") || isActiveToday(old, today(), ZoneId.of(settings.timezone())),
+                "日期已切换，请刷新页面并开始新的计数");
         List<Tap> taps = new ArrayList<>(old.taps());
         Instant end = old.endedAt();
         String newNote = old.note();

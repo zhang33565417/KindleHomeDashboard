@@ -197,7 +197,7 @@ public class PngRenderer {
     private void drawMovements(Graphics2D g, List<Session> sessions, LocalDate today, ZoneId zone, boolean wide) {
         List<Session> day=sessions.stream().filter(s -> s.startedAt().atZone(zone).toLocalDate().equals(today) || s.taps().stream().anyMatch(t -> t.at().atZone(zone).toLocalDate().equals(today)))
                 .sorted(java.util.Comparator.comparing(Session::startedAt).reversed()).toList();
-        Session active=sessions.stream().filter(s -> s.endedAt()==null).findFirst().orElse(null);
+        Session active=sessions.stream().filter(s -> isActiveToday(s,today,zone)).findFirst().orElse(null);
         Session recent=day.isEmpty() ? null : day.get(0);
         int x=wide ? 544 : 579, y=wide ? 704 : 791, width=wide ? 330 : 435, gap=wide ? 40 : 49;
         line(g,"今日记录： "+day.size()+" 次",x,y,width,42,32,true);
@@ -219,7 +219,11 @@ public class PngRenderer {
         Instant start=session.startedAt();
         if (!start.atZone(zone).toLocalDate().equals(today)) start=session.taps().stream().filter(t -> t.at().atZone(zone).toLocalDate().equals(today)).map(Tap::at).findFirst().orElse(start);
         DateTimeFormatter formatter=DateTimeFormatter.ofPattern("HH:mm").withZone(zone);
-        return formatter.format(start)+"–"+(session.endedAt()==null ? "进行中" : formatter.format(session.endedAt()));
+        return formatter.format(start)+"–"+(session.endedAt()==null ? (isActiveToday(session,today,zone) ? "进行中" : "24:00") : formatter.format(session.endedAt()));
+    }
+
+    static boolean isActiveToday(Session session, LocalDate today, ZoneId zone) {
+        return session.endedAt() == null && session.startedAt().atZone(zone).toLocalDate().equals(today);
     }
 
     static String lunarDate(LocalDate date) {

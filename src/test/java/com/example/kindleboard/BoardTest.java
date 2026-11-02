@@ -100,6 +100,32 @@ class BoardTest {
         assertNotEquals(session.id(), restarted.start().id());
     }
 
+    @Test void yesterdayUnfinishedSessionDoesNotCarryIntoToday() throws Exception {
+        ZoneId zone = ZoneId.of(board.settings().timezone());
+        LocalDate today = LocalDate.now(zone);
+        Instant yesterday = today.minusDays(1).atTime(23, 50).atZone(zone).toInstant();
+        Session old = new Session("yesterday", yesterday, null, "保留备注", List.of(new Tap("tap", yesterday)));
+        new JsonStore(mapper, directory.toString()).save("movements.json", new BoardService.MovementFile(List.of(old)));
+        board = reopen();
+        assertNull(board.state().get("activeSession"));
+        assertEquals(0L, board.movements(today).get("count"));
+        assertEquals(List.of(), board.movements(today).get("sessions"));
+        assertFalse(PngRenderer.isActiveToday(old, today, zone));
+        assertTrue(PngRenderer.isActiveToday(old, today.minusDays(1), zone));
+        assertThrows(IllegalArgumentException.class, () -> board.changeSession(old.id(), "tap", null));
+        Session fresh = board.start();
+        assertNotEquals(old.id(), fresh.id());
+        assertTrue(fresh.taps().isEmpty());
+        board.changeSession(fresh.id(), "tap", null);
+        assertEquals(1L, board.movements(today).get("count"));
+        BoardService restarted = reopen();
+        assertEquals(fresh.id(), ((Session) restarted.state().get("activeSession")).id());
+        Session history = ((List<Session>) restarted.movements(today.minusDays(1)).get("sessions")).get(0);
+        assertEquals(1, history.taps().size());
+        assertEquals("保留备注", history.note());
+        assertEquals(today.atStartOfDay(zone).toInstant(), history.endedAt());
+    }
+
     @Test void crossMidnightCountsByTapDateInConfiguredZone() {
         Instant a = Instant.parse("2026-10-20T15:59:00Z"), b = Instant.parse("2026-10-20T16:01:00Z");
         List<Session> sessions = List.of(new Session("s", a, null, "", List.of(new Tap("1", a), new Tap("2", b))));
