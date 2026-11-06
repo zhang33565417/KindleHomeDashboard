@@ -33,7 +33,11 @@ draw_status() {
      else sh "$BASE/status.sh" "${1:-}"
      fi)
 }
+handle_home_request() {
+    [ ! -s "$RUN/exit-request" ] || exec sh "$BASE/control.sh" home tap
+}
 while is_dashboard; do
+    handle_home_request
     now=$(date +%s); second=$(((now+28800)%86400))
     read_power
     manual_until=$(cat "$RUN/manual-until" 2>/dev/null); [ -n "$manual_until" ] || manual_until=0
@@ -84,6 +88,7 @@ while is_dashboard; do
         echo "$network_due" > "$RUN/next-network-check"
     fi
     is_dashboard || break
+    handle_home_request
     if [ -f "$RUN/redraw-after-wake" ]; then
         # Only skip the full recovery when resume left the framebuffer intact.
         if [ "$profile" = day ] && [ -f "$RUN/resume-clean" ]; then
@@ -117,6 +122,7 @@ while is_dashboard; do
              [ "$duration" -le "$boundary" ] || duration=$boundary
             if [ "$test_until" -gt 0 ] && [ "$duration" -gt $((test_until-now)) ]; then duration=$((test_until-now)); fi
             if [ "$duration" -ge 5 ]; then
+                handle_home_request
                 if ! sh "$BASE/sleep-cycle.sh" "$duration"; then
                     log 'Suspend failed; returning to native Home'; rm -f "$RUN/power-loop.pid"; exec sh "$BASE/control.sh" home
                 fi

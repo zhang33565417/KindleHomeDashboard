@@ -8,6 +8,14 @@ mkdir "$stage" || exit 1
 cleanup() {
     rm -f "$archive" "$stage/frame.png" "$stage/manifest.txt" "$stage/clock-background.png" "$stage/battery-background.png" "$stage/validated"
     rmdir "$stage" 2>/dev/null || :
+    # An interruption before publication leaves the previous frame selected.
+    if [ -n "$new_name" ] && [ "$(cat "$BASE/frame-current" 2>/dev/null)" != "$new_name" ]; then
+        rm -f "$BASE/frames/$new_name/frame.png" "$BASE/frames/$new_name/manifest.txt" \
+            "$BASE/frames/$new_name/clock-background.png" "$BASE/frames/$new_name/battery-background.png" \
+            "$RUN/layout-$new_name"
+        rmdir "$BASE/frames/$new_name" 2>/dev/null || :
+    fi
+    rm -f "$BASE/frame-current.tmp"
 }
 trap cleanup EXIT
 trap 'exit 1' INT TERM
@@ -40,20 +48,18 @@ is_dashboard || exit 1
 old_name=$(cat "$BASE/frame-current" 2>/dev/null)
 stop_worker "$RUN/touch-loop.pid"
 mv "$stage" "$BASE/frames/$new_name" || exit 1
-printf '%s\n' "$new_name" > "$BASE/frame-current.tmp"
-mv "$BASE/frame-current.tmp" "$BASE/frame-current" || exit 1
-rm -f "$RUN/layout-frame" "$RUN/layout-state" "$RUN/status-key" "$RUN/clock-key"
-if ! sh "$BASE/render-frame.sh"; then
-    log 'Frame render failed; reverting previous generation'
+rm -f "$RUN/status-key" "$RUN/clock-key"
+if ! DASHBOARD_FRAME_OVERRIDE="$new_name" sh "$BASE/render-frame.sh"; then
+    log 'Frame render failed; keeping previous generation'
     if valid_frame_name "$old_name"; then
-        printf '%s\n' "$old_name" > "$BASE/frame-current.tmp"; mv "$BASE/frame-current.tmp" "$BASE/frame-current"
-        rm -f "$RUN/layout-frame" "$RUN/layout-state" "$RUN/status-key" "$RUN/clock-key"
+        rm -f "$RUN/status-key" "$RUN/clock-key"
         sh "$BASE/render-frame.sh" || :
-    else
-        rm -f "$BASE/frame-current" "$RUN/layout-frame" "$RUN/layout-state"
     fi
     resume_frame_touch; exit 1
 fi
+is_dashboard || exit 1
+printf '%s\n' "$new_name" > "$BASE/frame-current.tmp" || exit 1
+mv -f "$BASE/frame-current.tmp" "$BASE/frame-current" || exit 1
 echo "$bundle_version" > "$BASE/current-version.txt"
 if valid_frame_name "$old_name"; then echo "$old_name" > "$BASE/frame-previous"; fi
 resume_frame_touch
@@ -63,5 +69,6 @@ for directory in "$BASE"/frames/frame-*; do
     [ "$candidate" != "$new_name" ] && [ "$candidate" != "$old_name" ] || continue
     rm -f "$directory/frame.png" "$directory/manifest.txt" "$directory/clock-background.png" "$directory/battery-background.png"
     rmdir "$directory" 2>/dev/null || :
+    rm -f "$RUN/layout-$candidate"
 done
 log "Frame committed: $bundle_version $K_layout"

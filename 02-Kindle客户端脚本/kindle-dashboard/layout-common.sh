@@ -58,23 +58,27 @@ png_dimensions() {
     [ "$actual_w" = "$expected_w" ] && [ "$actual_h" = "$expected_h" ]
 }
 valid_frame_name() {
+    case "$1" in *[!a-z0-9-]*) return 1;; esac
     printf '%s\n' "$1" | grep -Eq '^frame-[0-9]{1,20}-(portrait-v1|landscape-v1)-[0-9]+$'
 }
 load_frame() {
-    frame_name=$(cat "$BASE/frame-current" 2>/dev/null)
+    local cache temporary
+    frame_name=${DASHBOARD_FRAME_OVERRIDE:-$(cat "$BASE/frame-current" 2>/dev/null)}
     valid_frame_name "$frame_name" || return 1
     FRAME_DIR="$BASE/frames/$frame_name"
     [ -s "$FRAME_DIR/frame.png" ] || return 1
-    if [ "$(cat "$RUN/layout-frame" 2>/dev/null)" != "$frame_name" ] || [ ! -s "$RUN/layout-state" ]; then
-        cache="$RUN/layout-state-$$.tmp"
-        validate_manifest "$FRAME_DIR/manifest.txt" "$cache" || { rm -f "$cache"; return 1; }
-        printf "FRAME_DIR='%s'\n" "$FRAME_DIR" >> "$cache"
-        mv "$cache" "$RUN/layout-state"
-        echo "$frame_name" > "$RUN/layout-frame"
+    # Read only metadata for the selected immutable generation. A concurrent
+    # frame switch cannot pair new geometry with the previous image.
+    cache="$RUN/layout-$frame_name"
+    if [ ! -s "$cache" ]; then
+        temporary=$(mktemp "$RUN/layout-state.XXXXXX") || return 1
+        if ! validate_manifest "$FRAME_DIR/manifest.txt" "$temporary" || ! mv -f "$temporary" "$cache"; then
+            rm -f "$temporary"; return 1
+        fi
     fi
-    . "$RUN/layout-state"
+    . "$cache"
 }
 resume_frame_touch() {
     is_dashboard || return 0
-    case "$(cat "$RUN/profile" 2>/dev/null)" in day|night) :;; *) start_worker touch-loop;; esac
+    case "$(cat "$RUN/profile" 2>/dev/null)" in fast|interactive) start_worker touch-loop;; esac
 }
