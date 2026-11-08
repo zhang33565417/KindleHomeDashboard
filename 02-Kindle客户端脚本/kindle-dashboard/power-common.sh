@@ -16,7 +16,7 @@ read_power() {
 restore_light() {
     if [ -s "$RUN/saved-light" ]; then
         saved_light=$(cat "$RUN/saved-light")
-        lipc-set-prop com.lab126.powerd flIntensity "$saved_light" 2>/dev/null
+        timeout -t 3 lipc-set-prop com.lab126.powerd flIntensity "$saved_light" 2>/dev/null || return 1
         rm -f "$RUN/saved-light"
     fi
 }

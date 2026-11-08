@@ -4,15 +4,32 @@
 . "$BASE/layout-common.sh"
 exec 8>"$RUN/control.lock"
 flock -x 8 || exit 1
+native_prop() {
+    timeout -t 2 lipc-get-prop "com.lab126.$1" "$2" 2>/dev/null
+}
+home_ready() {
+    local value
+    ready_stage=framework
+    [ "$(native_prop kaf frameworkStarted)" = 1 ] || return 1
+    ready_stage=window-manager
+    [ "$(native_prop winmgr winmgrReady)" = 1 ] || return 1
+    ready_stage=foreground-app
+    [ "$(native_prop appmgrd activeApp)" = com.lab126.booklet.home ] || return 1
+    ready_stage=foreground-window
+    value=$(native_prop winmgr getActiveAppTitle) || return 1
+    case "$value" in *application_ID:com.lab126.booklet.home_*) ;; *) return 1;; esac
+    ready_stage=power-state
+    [ "$(native_prop powerd state)" = active ]
+}
 restore_home() {
-    local restored=0
+    local restored=0 ready_stage deadline last_stage= stable=0
+    log 'Restoring native Home'
     echo home > "$RUN/mode"
     stop_worker "$BASE/auto-refresh.pid"
     for name in power-loop auto-refresh status-loop touch-loop power-events; do
         stop_worker "$RUN/$name.pid"
     done
     clear_owned_alarms
-    restore_light
     # Give an in-flight draw a short window. A stuck draw must not strand Home.
     exec 9>"$RUN/display.lock"
     attempt=0
@@ -24,17 +41,46 @@ restore_home() {
         sleep 1; attempt=$((attempt+1))
     done
     killall -CONT awesome pillowd cvm 2>/dev/null
-    lipc-set-prop com.lab126.powerd preventScreenSaver 0 || { log 'Native sleep restore failed'; restored=1; }
-    lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.home || { log 'Native Home launch failed'; restored=1; }
+    log 'Sent resume signal to native UI'
+    timeout -t 3 lipc-set-prop com.lab126.powerd preventScreenSaver 0 || { log 'Native sleep restore failed or timed out'; restored=1; }
+    if ! timeout -t 4 lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.home; then
+        log 'Native Home launch failed or timed out; retrying'
+        sleep 1
+        timeout -t 4 lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.home || { log 'Native Home retry failed or timed out'; restored=1; }
+    fi
     # Pillow sometimes times out. It must not delay launching the native Home.
     timeout -t 2 lipc-set-prop com.lab126.pillow disableEnablePillow enable || log 'Native Pillow enable did not complete'
+    restore_light || { log 'Native frontlight restore failed or timed out'; restored=1; }
+    deadline=$(($(date +%s)+35))
+    while :; do
+        if home_ready; then
+            stable=$((stable+1))
+            [ "$stable" -ge 2 ] && break
+        else
+            stable=0
+            if [ "$last_stage" != "$ready_stage" ]; then
+                log "Waiting for native Home: stage=$ready_stage"
+                last_stage=$ready_stage
+            fi
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            log "Native Home readiness timed out: stage=$ready_stage"
+            restored=1
+            break
+        fi
+        sleep 1
+    done
     # Home can repaint its body without replacing the native toolbar pixels.
     # Ask X to expose the native windows again after releasing the framebuffer.
     if command -v xrefresh >/dev/null 2>&1; then
-        DISPLAY=:0 timeout -t 4 xrefresh || log 'Native Home redraw did not complete'
+        DISPLAY=:0 timeout -t 4 xrefresh || { log 'Native Home redraw did not complete'; restored=1; }
     fi
     rm -f "$RUN/exit-request" "$RUN/status-key" "$RUN/calendar-day" "$RUN/calendar-clock" "$RUN/clock-key" "$RUN/profile" "$RUN/manual-until" "$RUN/policy-test" "$RUN/power-button-time"
-    if [ "$restored" = 0 ]; then log 'Returned to native home; normal sleep restored'; fi
+    if [ "$restored" = 0 ]; then
+        log 'Native Home ready in foreground; normal sleep restored'
+    else
+        log 'Native Home recovery incomplete; see failed stage above'
+    fi
     return "$restored"
 }
 fail_dashboard_entry() {
