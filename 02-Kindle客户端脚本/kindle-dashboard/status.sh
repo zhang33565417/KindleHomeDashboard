@@ -13,9 +13,9 @@ case "$level" in ''|*[!0-9]*) log 'Battery read failed'; exit 1;; esac
 asset="$level-$charging"
 key="$K_layout-$frame_name-$asset"
 if [ "${1:-}" = force ] || [ "$(cat "$RUN/status-key" 2>/dev/null)" != "$key" ]; then
-    "$BASE/bin/fbink" -q -b -Y -4 -g "file=$FRAME_DIR/battery-background.png,x=$K_battery_x,y=$K_battery_y" || exit 1
-    "$BASE/bin/fbink" -q -b -Y -4 -g "file=$BASE/layout-assets/$K_layout/$asset.png,x=$K_battery_x,y=$K_battery_y,w=$K_battery_w,h=$K_battery_h" || exit 1
-    "$BASE/bin/fbink" -q -w -s "top=$K_battery_y,left=$K_battery_x,width=$K_battery_w,height=$K_battery_h" || exit 1
+    sh "$BASE/window-draw.sh" "$K_battery_x" "$K_battery_y" "$K_battery_w" "$K_battery_h" \
+        "$K_battery_x" "$K_battery_y" "$K_battery_w" "$K_battery_h" "$FRAME_DIR/battery-background.png" \
+        "$K_battery_x" "$K_battery_y" "$K_battery_w" "$K_battery_h" "$BASE/layout-assets/$K_layout/$asset.png" || exit 1
     echo "$key" > "$RUN/status-key"
     log "Status drawn: battery=$level charging=$charging"
 fi

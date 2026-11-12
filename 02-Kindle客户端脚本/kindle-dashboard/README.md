@@ -102,6 +102,8 @@ http://192.168.1.100:8080
 
 ### 补齐 FBInk 和 evtest
 
+全屏窗口版还需要与 Kindle 兼容的 LuaJIT。客户端优先使用 `kindle-dashboard/bin/luajit`，否则使用设备已有的 `/mnt/us/koreader/luajit`。这里只调用解释器，不启动 KOReader 或加载它的插件。窗口通过原生 X11 绘制，FBInk 用于提交墨水屏刷新。
+
 按 [FBInk 上游](https://github.com/NiLuJe/FBInk) 和 NiLuJe 工具包获取匹配 PW4 架构、支持 PNG 的程序。若传统 USBNetwork 已提供，可在 Kindle SSH 中检查并复制：
 
 ```sh

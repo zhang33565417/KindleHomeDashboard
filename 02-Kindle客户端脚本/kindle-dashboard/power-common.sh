@@ -28,10 +28,12 @@ dim_light() {
 }
 clear_owned_alarms() {
     if [ -f "$RUN/sleep-armed" ]; then
-        echo 0 > /sys/class/rtc/rtc1/wakealarm
-        echo 0 > /sys/class/rtc/rtc0/wakealarm
+        owned_alarm=$(cat "$RUN/rtc0-dashboard-alarm" 2>/dev/null)
+        if [ -n "$owned_alarm" ] && [ "$(cat /sys/class/rtc/rtc0/wakealarm)" = "$owned_alarm" ]; then
+            echo 0 > /sys/class/rtc/rtc0/wakealarm
+        fi
         old_wakeup=$(cat "$RUN/rtc0-wakeup-before" 2>/dev/null)
         case "$old_wakeup" in enabled|disabled) echo "$old_wakeup" > /sys/class/rtc/rtc0/device/power/wakeup;; esac
-        rm -f "$RUN/sleep-armed" "$RUN/rtc0-wakeup-before"
+        rm -f "$RUN/sleep-armed" "$RUN/rtc0-wakeup-before" "$RUN/rtc0-dashboard-alarm"
     fi
 }

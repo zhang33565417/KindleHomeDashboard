@@ -17,4 +17,4 @@ The optional `kindleVersion` in `/api/version` selects `?contentOnly=true` frame
 
 ## Rollback
 
-Exit via control.sh home before restoring the extension backup. This releases RTC alarms, paused UI and frontlight. Restore scripts/config and re-enter through KUAL. Server and client may be rolled back independently because legacy endpoints remain supported.
+Exit via control.sh home before restoring the extension backup. This closes the dashboard window, clears its RTC alarm, and restores the frontlight. Restore scripts/config and re-enter through KUAL. Server and client may be rolled back independently because legacy endpoints remain supported.

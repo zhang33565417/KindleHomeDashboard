@@ -7,26 +7,29 @@ flock -x 8 || exit 1
 native_prop() {
     timeout -t 2 lipc-get-prop "com.lab126.$1" "$2" 2>/dev/null
 }
-home_ready() {
-    local value
+native_ready() {
     ready_stage=framework
     [ "$(native_prop kaf frameworkStarted)" = 1 ] || return 1
     ready_stage=window-manager
     [ "$(native_prop winmgr winmgrReady)" = 1 ] || return 1
+    ready_stage=power-state
+    [ "$(native_prop powerd state)" = active ]
+}
+home_foreground() {
+    local value
     ready_stage=foreground-app
     [ "$(native_prop appmgrd activeApp)" = com.lab126.booklet.home ] || return 1
     ready_stage=foreground-window
     value=$(native_prop winmgr getActiveAppTitle) || return 1
     case "$value" in *application_ID:com.lab126.booklet.home_*) ;; *) return 1;; esac
-    ready_stage=power-state
-    [ "$(native_prop powerd state)" = active ]
+    return 0
 }
 restore_home() {
-    local restored=0 ready_stage deadline last_stage= stable=0
+    local restored=0 ready_stage deadline last_stage= stable=0 requested=0 checks=0
     log 'Restoring native Home'
     echo home > "$RUN/mode"
     stop_worker "$BASE/auto-refresh.pid"
-    for name in power-loop auto-refresh status-loop touch-loop power-events; do
+    for name in power-loop auto-refresh status-loop touch-loop power-events window-worker; do
         stop_worker "$RUN/$name.pid"
     done
     clear_owned_alarms
@@ -41,29 +44,31 @@ restore_home() {
         sleep 1; attempt=$((attempt+1))
     done
     killall -CONT awesome pillowd cvm 2>/dev/null
-    log 'Sent resume signal to native UI'
+    # Compatibility with devices upgrading from the framebuffer-only version.
     timeout -t 3 lipc-set-prop com.lab126.powerd preventScreenSaver 0 || { log 'Native sleep restore failed or timed out'; restored=1; }
-    if ! timeout -t 4 lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.home; then
-        log 'Native Home launch failed or timed out; retrying'
-        sleep 1
-        timeout -t 4 lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.home || { log 'Native Home retry failed or timed out'; restored=1; }
-    fi
-    # Pillow sometimes times out. It must not delay launching the native Home.
     timeout -t 2 lipc-set-prop com.lab126.pillow disableEnablePillow enable || log 'Native Pillow enable did not complete'
     restore_light || { log 'Native frontlight restore failed or timed out'; restored=1; }
-    deadline=$(($(date +%s)+35))
+    deadline=$(($(date +%s)+90))
     while :; do
-        if home_ready; then
+        if native_ready; then
             stable=$((stable+1))
-            [ "$stable" -ge 2 ] && break
+            if [ "$stable" -ge 2 ]; then
+                home_foreground && break
+                if [ "$requested" = 0 ]; then
+                    requested=1
+                    timeout -t 4 lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.home ||
+                        log 'Native Home launch did not acknowledge; leaving recovery to native UI'
+                fi
+            fi
         else
             stable=0
-            if [ "$last_stage" != "$ready_stage" ]; then
-                log "Waiting for native Home: stage=$ready_stage"
-                last_stage=$ready_stage
-            fi
         fi
-        if [ "$(date +%s)" -ge "$deadline" ]; then
+        if [ "$last_stage" != "$ready_stage" ]; then
+            log "Waiting for native Home: stage=$ready_stage"
+            last_stage=$ready_stage
+        fi
+        checks=$((checks+1))
+        if [ "$(date +%s)" -ge "$deadline" ] || [ "$checks" -ge 90 ]; then
             log "Native Home readiness timed out: stage=$ready_stage"
             restored=1
             break
@@ -75,7 +80,9 @@ restore_home() {
     if command -v xrefresh >/dev/null 2>&1; then
         DISPLAY=:0 timeout -t 4 xrefresh || { log 'Native Home redraw did not complete'; restored=1; }
     fi
-    rm -f "$RUN/exit-request" "$RUN/status-key" "$RUN/calendar-day" "$RUN/calendar-clock" "$RUN/clock-key" "$RUN/profile" "$RUN/manual-until" "$RUN/policy-test" "$RUN/power-button-time"
+    "$BASE/bin/fbink" -q -w -s top=0,left=0,width=1072,height=1448 ||
+        { log 'Native panel refresh did not complete'; restored=1; }
+    rm -f "$RUN/exit-request" "$RUN/status-key" "$RUN/calendar-day" "$RUN/calendar-clock" "$RUN/clock-key" "$RUN/profile" "$RUN/manual-until" "$RUN/policy-test" "$RUN/power-button-time" "$RUN/window-request" "$RUN/window-ack"
     if [ "$restored" = 0 ]; then
         log 'Native Home ready in foreground; normal sleep restored'
     else
@@ -102,7 +109,7 @@ dashboard)
     lipc-set-prop com.lab126.powerd preventScreenSaver 1 ||
         fail_dashboard_entry 'Could not keep Kindle awake; returning to native Home'
     # A pending native screen saver is not cancelled by preventScreenSaver.
-    # Wake powerd before pausing the native UI, including KUAL/power-key races.
+    # Wake powerd before mapping the dashboard surface.
     killall -CONT awesome cvm pillowd 2>/dev/null
     if [ "$(lipc-get-prop com.lab126.powerd state 2>/dev/null)" != active ]; then
         lipc-set-prop com.lab126.powerd wakeUp 1 ||
@@ -115,8 +122,6 @@ dashboard)
             fail_dashboard_entry 'Native wake failed; returning to Home instead of drawing over screen saver'
         fi
     fi
-    lipc-set-prop com.lab126.pillow disableEnablePillow disable
-    killall -STOP awesome pillowd cvm 2>/dev/null
     read_power
     now=$(date +%s); second=$(((now+28800)%86400))
     latched=$(cat "$RUN/low-latched" 2>/dev/null); [ "$latched" = 1 ] || latched=0
@@ -127,6 +132,7 @@ dashboard)
         esac
     fi
     echo "$profile" > "$RUN/profile"
+    start_worker window-worker
     # Show cached content immediately; dates remain in the original server PNG.
     sh "$BASE/display.sh" || fail_dashboard_entry 'Dashboard display failed; returning to native Home'
     start_worker power-events
